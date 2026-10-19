@@ -1,6 +1,7 @@
 name: test
 # Unit tests, then the browser check twice: once offline (the page's own light/dark
-# fallback) and once with the shared theme, settings panel and sky from the portfolio.
+# fallback) and once with the shared theme, settings panel and sky as the live
+# portfolio serves them.
 on:
   push:
   pull_request:
@@ -17,20 +18,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: areeb-ece/areeb-ece.github.io
-          path: portfolio
-          sparse-checkout: public/design
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm i --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      # The shared files exactly as the live site serves them to this page.
+      - run: |
+          mkdir -p "$RUNNER_TEMP/design"
+          for f in tokens.css ui.css theme.js ui.js; do
+            curl -fsSL "https://areeb-ece.github.io/design/$f" -o "$RUNNER_TEMP/design/$f"
+          done
       - run: npm run test:browser
         env:
-          DESIGN_DIR: portfolio/public/design
+          DESIGN_DIR: ${{ runner.temp }}/design
       - uses: actions/upload-artifact@v4
         if: always()
         with:
