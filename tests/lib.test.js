@@ -8,7 +8,9 @@ import { plan, distribution } from "../js/lib/planner.js";
 import { baseRate, machineAt, layouts, fillLast } from "../js/lib/machines.js";
 import { extractor, well, clockForCap, forTarget as minersFor } from "../js/lib/extract.js";
 import { burn, forTarget, fromSupply, geothermal } from "../js/lib/power.js";
-import { toWeights, splitPlan } from "../js/lib/belts.js";
+import { toWeights, splitPlan, network, rational } from "../js/lib/belts.js";
+import { factoryGraph, balancerPlan, ratioLabel } from "../js/lib/factory.js";
+import { layout } from "../js/lib/flowlayout.js";
 import { train, carsFor, drone } from "../js/lib/logistics.js";
 import { couponCost, schedule, pointsPerMinute } from "../js/lib/sink.js";
 import { totals } from "../js/lib/milestones.js";
@@ -139,24 +141,123 @@ test("power: fuel, water and waste per generator", () => {
   near(geothermal({ normal: 1, pure: 1 }).mw, 600);
 });
 
-test("belts: ratios and splitter trees", () => {
+// Follows every belt of a splitter network and checks it does exactly what it claims:
+// splitters divide evenly into 2 or 3, mergers take at most 3 and lose nothing, and
+// each output receives exactly its weight in 1/D shares of the input.
+function verifyNetwork(weights, plan, net, inputs = 1) {
+  const into = new Map(), from = new Map();
+  for (const e of net.edges) {
+    (into.get(e.to) ?? into.set(e.to, []).get(e.to)).push(e);
+    (from.get(e.from) ?? from.set(e.from, []).get(e.from)).push(e);
+  }
+  const sum = (l) => (l ?? []).reduce((t, e) => t + e.parts, 0);
+  let splitters = 0, mergers = 0;
+  for (const n of net.nodes) {
+    const i = into.get(n.id) ?? [], o = from.get(n.id) ?? [];
+    if (n.kind === "split") {
+      splitters++;
+      assert.equal(i.length, 1);
+      assert.ok(n.ways === 2 || n.ways === 3);
+      assert.equal(o.length, n.ways);
+      for (const e of o) assert.equal(e.parts * n.ways, i[0].parts, "splitter divides evenly");
+    } else if (n.kind === "merge") {
+      mergers++;
+      assert.ok(i.length >= 2 && i.length <= 3, "merger takes 2–3 belts");
+      assert.equal(o.length, 1);
+      near(o[0].parts, sum(i), 1e-12);
+    } else if (n.kind === "out") {
+      assert.equal(sum(i), weights[n.out], `output ${n.out} gets exactly its weight`);
+    } else if (n.kind === "in") assert.equal(i.length, 0);
+  }
+  assert.equal(splitters, plan.splitters);
+  assert.equal(mergers, plan.mergers + Math.ceil((inputs - 1) / 2), "mergers: the plan's, plus any to join several inputs");
+  const ins = net.nodes.filter((n) => n.kind === "in").map((n) => sum(from.get(n.id)));
+  near(ins.reduce((t, x) => t + x, 0), plan.D, 1e-12);
+}
+
+test("belts: exact weights for any ratio", () => {
   assert.deepEqual(toWeights([180, 120, 75]).weights, [12, 8, 5]);
   assert.deepEqual(toWeights([22.5, 22.5, 45]).weights, [1, 1, 2]);
-  const approx = toWeights([1, Math.PI]);
-  assert.equal(approx.exact, false);
-  // Each output's subtrees add up to its weight; the loop takes the rest.
+  assert.deepEqual(toWeights([1234, 63, 17]).weights, [1234, 63, 17]);
+  assert.deepEqual(toWeights([0.1, 0.2, 0.7]).weights, [1, 2, 7]);
+  assert.deepEqual(toWeights(["12.75", "0.25"]).weights, [51, 1]);
+  assert.deepEqual(toWeights([30, 14.53125]).weights, [64, 31]);
+  assert.deepEqual(rational(825 / 28), [825n, 28n]);
+});
+
+test("belts: every splitter network is exact, 1234:63:17 included", () => {
   const parts = (t, acc = {}) => (t.children ? t.children.forEach((c) => parts(c, acc)) : (acc[t.out] = (acc[t.out] ?? 0) + t.parts), acc);
-  for (const w of [[1, 1], [1, 1, 1], [2, 1], [1, 1, 1, 1, 1], [12, 8, 5], [3, 4], [7]]) {
+  const cases = [[1, 1], [1, 1, 1], [2, 1], [3, 2], [5, 4], [2, 7], [1, 1, 1, 1, 1], [12, 8, 5], [3, 4], [7], [1234, 63, 17],
+    [999983, 1], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], [...Array(6).fill(64), ...Array(16).fill(31)]];
+  let seed = 3;
+  const rnd = (n) => 1 + ((seed = (seed * 48271) % 2147483647) % n);
+  for (let k = 0; k < 40; k++) cases.push(Array.from({ length: 2 + (k % 6) }, () => rnd(k < 20 ? 20 : 5000)));
+  for (const w of cases) {
     const p = splitPlan(w);
     const got = parts(p.tree);
     w.forEach((x, i) => assert.equal(got[i] ?? 0, x, `weights ${w}`));
     assert.equal(got[w.length] ?? 0, p.loop);
     assert.equal(p.N, p.D + p.loop);
+    let n = p.N;
+    while (n % 2 === 0) n /= 2;
+    while (n % 3 === 0) n /= 3;
+    assert.ok(n === 1 || w.length === 1, "N = 2^a·3^b (one output needs no splitter at all)");
+    verifyNetwork(w, p, network(w, p));
+    verifyNetwork(w, p, network(w, p, [3, 1, 2]), 3); // three uneven input belts merged first
   }
   assert.equal(splitPlan([1, 1]).splitters, 1);
   assert.equal(splitPlan([1, 1, 1]).loop, 0);
   assert.equal(splitPlan([1, 1, 1, 1, 1]).loop, 1); // 5 → split 6, loop one back
-  assert.equal(splitPlan([2, 1]).mergers, 1);
+  const big = splitPlan([1234, 63, 17]);
+  assert.equal(big.D, 1314);
+  assert.ok(big.splitters + big.mergers < 40, "and it stays a reasonable build");
+});
+
+test("factory graph: a card per machine, exact splitters between them", () => {
+  const r = plan({ targets: [{ item: "ModularFrame", rate: 10 }, { item: "Rotor", rate: 10 }, { item: "IronPlateReinforced", rate: 5 }], recipes: G.defaultRecipes() });
+  const g = factoryGraph(r);
+  const machines = g.nodes.filter((n) => n.kind === "machine");
+  assert.equal(machines.length, r.lines.reduce((t, L) => t + L.built, 0));
+  // Iron ingots: 14 smelters merge, then split between 6 plate and 16 rod constructors.
+  const ing = g.nodes.find((n) => n.id === "bal:IronIngot");
+  assert.equal(ing.ins.length, 14);
+  assert.equal(ing.outs.length, 22);
+  near(ing.ins.reduce((t, x) => t + x.rate, 0), ing.total, 1e-9);
+  const bp = balancerPlan(ing);
+  assert.deepEqual([...new Set(bp.weights)].sort((a, b) => b - a), [64, 31]);
+  verifyNetwork(bp.weights, bp.plan, bp.net, 14);
+  assert.match(ratioLabel(bp.weights), /^(6×64 : 16×31|16×31 : 6×64)$/);
+  // Every edge's rate is conserved through every splitter card.
+  for (const b of g.nodes.filter((n) => n.kind === "bal")) {
+    near(g.edges.filter((e) => e.to === b.id).reduce((t, e) => t + e.rate, 0), g.edges.filter((e) => e.from === b.id).reduce((t, e) => t + e.rate, 0), 1e-9);
+  }
+  // One machine to one machine needs no splitter: a direct belt.
+  const lines = factoryGraph(r, { perMachine: false });
+  assert.equal(lines.nodes.filter((n) => n.kind === "machine").length, r.lines.length);
+});
+
+test("flow layout: columns left to right, no overlapping cards, loops routed underneath", () => {
+  const r = plan({ targets: [{ item: "ModularFrame", rate: 10 }, { item: "Rotor", rate: 10 }], recipes: G.defaultRecipes() });
+  const g = factoryGraph(r);
+  const L = layout(g.nodes.map((n) => ({ ...n, w: 180, h: n.kind === "bal" ? 120 : 60 })), g.edges);
+  for (const e of L.edges) {
+    const a = L.nodes.get(e.from), b = L.nodes.get(e.to);
+    if (e.kind === "fwd") assert.ok(a.x + a.w < b.x, `${e.from} → ${e.to} runs left to right`);
+  }
+  const all = [...L.nodes.values()];
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+    const a = all[i], b = all[j];
+    const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    assert.ok(!overlap, `${a.id} overlaps ${b.id}`);
+  }
+  assert.ok(g.nodes.filter((n) => n.last).every((n) => L.nodes.get(n.id).col === L.nCols - 1), "products in the last column");
+  // A loop (a splitter's loop-back belt) is drawn as a bus below everything else.
+  const w = [1, 1, 1, 1, 1], p = splitPlan(w), net = network(w, p);
+  const SL = layout(net.nodes.map((n) => ({ id: n.id, w: 100, h: 40, last: n.kind === "out" })), net.edges);
+  const back = SL.edges.filter((e) => e.kind === "back");
+  assert.equal(back.length, 1);
+  const lowest = Math.max(...[...SL.nodes.values()].map((n) => n.y + n.h));
+  assert.ok(back[0].d.split(/[ ,LMQC]/).filter(Boolean).map(Number).some((v) => v > lowest), "bus runs under the cards");
 });
 
 test("logistics: trains and drones", () => {
