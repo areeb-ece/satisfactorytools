@@ -23,7 +23,14 @@ function closure(start, nbrs) {
  * @param {{nodes: object[], edges: object[]}} graph
  *   nodes: { id, w, h, last?, kind, title, sub?, note?, tag?, cc?, aria? }
  *   edges: { from, to, label?, title?, loop? }
- * @param {object} [opts]  { details(node) → Element, labels: boolean, tall: boolean, empty: string }
+ * @param {object} [opts]
+ *   details(node) → Element   what a pinned card shows
+ *   wide(node) → boolean      pin it in the wide drawer (e.g. a splitter's own build)
+ *   labels                    rate labels on the links
+ *   stage                     fill the container, PrereqFlow style: a legend strip on top,
+ *                             zoom controls floating bottom right, a drawer on the right
+ *   toolbar                   extra controls for the strip (stage only)
+ *   legend                    extra legend entries for the strip (stage only)
  */
 export function flowchart(graph, opts = {}) {
   const id = "fc" + uid++;
@@ -77,16 +84,20 @@ export function flowchart(graph, opts = {}) {
   const pct = h("button", { type: "button", class: "pct", title: "Actual size", text: "100%", on: { click: () => setZoom(1) } });
   const chips = h("div", { class: "fc-chips" });
   const dimBtn = h("button", { type: "button", class: "btn small ghost", "aria-pressed": "true", text: "Dim others: on", on: { click: () => { st.dim = !st.dim; dimBtn.textContent = "Dim others: " + (st.dim ? "on" : "off"); dimBtn.setAttribute("aria-pressed", String(st.dim)); apply(); } } });
-  const bar = h("div", { class: "fc-bar" },
-    h("div", { class: "fc-zoom" },
-      h("button", { type: "button", "aria-label": "Zoom out", title: "Zoom out", text: "−", on: { click: () => setZoom(st.zoom / 1.25) } }),
-      pct,
-      h("button", { type: "button", "aria-label": "Zoom in", title: "Zoom in", text: "+", on: { click: () => setZoom(st.zoom * 1.25) } }),
-      h("button", { type: "button", title: "Fit to the window", text: "fit", on: { click: () => fit() } })),
-    chips,
-    h("span", { class: "fc-hint", text: "hover to trace · click to pin · shift+click to highlight a tree · drag to pan · ctrl+scroll to zoom" }));
-  const details = h("div", { class: "fc-details", hidden: true });
-  const root = h("div", { class: "fc" }, bar, h("div", { class: "fc-frame" }, view, readout), details);
+  const zoom = h("div", { class: "fc-zoom" },
+    h("button", { type: "button", "aria-label": "Zoom out", title: "Zoom out", text: "−", on: { click: () => setZoom(st.zoom / 1.25) } }),
+    pct,
+    h("button", { type: "button", "aria-label": "Zoom in", title: "Zoom in", text: "+", on: { click: () => setZoom(st.zoom * 1.25) } }),
+    h("button", { type: "button", title: "Fit to the window", text: "fit", on: { click: () => fit() } }));
+  const hint = h("span", { class: "fc-hint", text: "hover to trace · click to pin · shift+click to highlight a tree · drag to pan · ctrl+scroll to zoom" });
+  const swatch = (cls, label) => h("span", { class: "k" }, h("span", { class: "sw " + cls }), label);
+  const legend = h("div", { class: "fc-legend", "aria-label": "Legend" },
+    swatch("f", "hovered / pinned"), swatch("n", "feeds it"), swatch("u", "it feeds"), ...(opts.legend || []));
+  const details = h(opts.stage ? "aside" : "div", { class: opts.stage ? "fc-drawer" : "fc-details", hidden: true, "aria-label": "Details" });
+  const frame = h("div", { class: "fc-frame" }, view, readout, opts.stage ? zoom : null, opts.stage ? details : null);
+  const root = opts.stage
+    ? h("div", { class: "fc stage" }, h("div", { class: "fc-strip" }, legend, chips, opts.toolbar || null, hint), frame)
+    : h("div", { class: "fc" }, h("div", { class: "fc-bar" }, zoom, chips, hint), frame, details);
 
   // ── zoom and pan
   function setZoom(z, ax, ay) {
@@ -98,9 +109,15 @@ export function flowchart(graph, opts = {}) {
     sizer.style.setProperty("width", Math.ceil(lay.width * z) + "px");
     sizer.style.setProperty("height", Math.ceil(lay.height * z) + "px");
     pct.textContent = Math.round(z * 100) + "%";
+    center();
     view.scrollLeft = wx * z - vx;
     view.scrollTop = wy * z - vy;
     root.classList.toggle("far", z < 0.55); // labels and particles only when readable
+  }
+  // A chart smaller than its view sits in the middle of it rather than the top corner.
+  function center() {
+    sizer.style.setProperty("margin-left", Math.max(0, (view.clientWidth - lay.width * st.zoom) / 2) + "px");
+    sizer.style.setProperty("margin-top", Math.max(0, (view.clientHeight - lay.height * st.zoom) / 2) + "px");
   }
   function fit(min = 0.15) {
     const w = view.clientWidth || 900, hh = view.clientHeight || 600;
@@ -200,7 +217,8 @@ export function flowchart(graph, opts = {}) {
         gFlow.append(fl);
       }
     }
-    if (focus) {
+    // (the drawer already shows the pinned card, as in PrereqFlow)
+    if (focus && !(opts.stage && focus === st.pinned)) {
       const n = byId.get(focus);
       readout.replaceChildren(h("b", { text: n.title }), n.sub ? h("span", { text: n.sub }) : null,
         h("span", { class: "st" }, h("i", { class: "nd", text: String(anc.size - 1) }), " upstream · ", h("i", { class: "un", text: String(desc.size - 1) }), " downstream"));
@@ -235,14 +253,28 @@ export function flowchart(graph, opts = {}) {
     st.pinned = st.pinned === nid ? null : nid;
     clear(details);
     details.hidden = !st.pinned;
+    frame.classList.toggle("drawer-open", !!st.pinned && !!opts.stage);
     if (st.pinned) {
       const n = byId.get(st.pinned);
-      details.append(h("header", null, h("b", { text: n.title }), n.sub ? h("span", { text: n.sub }) : null, h("span", { class: "spacer" }),
-        ...Object.entries(DIRS).map(([d, label]) => h("button", { type: "button", class: "btn small ghost", text: "Highlight " + label, on: { click: () => toggleTree(n.id, d) } })),
-        h("button", { type: "button", class: "xbtn sm", "aria-label": "Close", text: "×", on: { click: () => pin(st.pinned) } })),
-        opts.details?.(n) ?? null);
+      details.classList.toggle("wide", !!opts.wide?.(n));
+      const close = h("button", { type: "button", class: "xbtn sm", "aria-label": "Close", text: "×", on: { click: () => pin(st.pinned) } });
+      const trees = h("div", { class: "row" }, Object.entries(DIRS).map(([d, label]) => h("button", { type: "button", class: "btn small ghost", text: "Highlight " + label, on: { click: () => toggleTree(n.id, d) } })));
+      if (opts.stage) {
+        details.append(h("header", null, h("div", null, h("b", { text: n.title }), n.tag ? h("i", { text: n.tag }) : null, n.sub ? h("span", { text: n.sub }) : null), close),
+          h("div", { class: "dbody" }, trees, opts.details?.(n) ?? null));
+      } else {
+        details.append(h("header", null, h("b", { text: n.title }), n.sub ? h("span", { text: n.sub }) : null, h("span", { class: "spacer" }), trees, close), opts.details?.(n) ?? null);
+      }
     }
     apply();
+  }
+  // Pin a card and bring it to the middle of the view (from a list outside the chart).
+  function focus(nid) {
+    const p = lay.nodes.get(nid);
+    if (!p) return;
+    if (st.pinned !== nid) pin(nid);
+    if (st.zoom < 0.7) setZoom(0.8);
+    view.scrollTo({ left: (p.x + p.w / 2) * st.zoom - view.clientWidth / 2, top: (p.y + p.h / 2) * st.zoom - view.clientHeight / 2, behavior: "smooth" });
   }
   for (const [nid, el] of cardEls) {
     el.addEventListener("pointerenter", () => { st.hovered = nid; apply(); });
@@ -254,10 +286,14 @@ export function flowchart(graph, opts = {}) {
 
   // Fit once the chart is in the page and has a size.
   // (first view: no smaller than 55%, so the cards stay readable; "fit" shows everything)
-  const ro = new ResizeObserver(() => { if (view.clientWidth) { ro.disconnect(); fit(0.55); } });
+  let fitted = false;
+  const ro = new ResizeObserver(() => {
+    if (!view.clientWidth) return;
+    if (!fitted) { fitted = true; fit(0.55); } else center();
+  });
   ro.observe(view);
   setZoom(1);
   apply();
-  root.chart = { layout: lay, fit, pin, toggleTree, setZoom, state: st };
+  root.chart = { layout: lay, fit, pin, focus, toggleTree, setZoom, state: st };
   return root;
 }

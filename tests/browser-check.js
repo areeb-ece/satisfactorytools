@@ -88,9 +88,16 @@ try {
     const heads = await page.$$eval(".line > header b", (b) => b.map((x) => x.textContent));
     assert.equal(heads[0], "Iron Ingot");
     assert.equal(heads.at(-1), "Modular Frame");
-    assert.ok((await page.textContent(".tw")).includes("412.5"), "412.5 iron ore/min");
-    await page.click(".line details.more summary");
-    assert.ok(await page.isVisible(".line details.more .fc-card.k-split"), "splitter plan drawn");
+    assert.ok((await page.textContent('.fc-card[data-id="src:OreIron"]')).includes("412.5"), "412.5 iron ore/min");
+    // The planner is a workspace: the diagram fills the stage beside the side panel.
+    if (tag === "desktop") {
+      const box = await page.locator(".ws-stage").boundingBox();
+      assert.ok(box.width > 900 && box.height > 700, `diagram fills the window (${box.width}×${box.height})`);
+      assert.ok(await page.isHidden("#nav"), "tool list folded away");
+      await page.click("#btnNav");
+      assert.ok(await page.isVisible("#nav"), "Tools button opens it");
+      await page.keyboard.press("Escape");
+    }
     // The factory diagram: a card for each of the 61 machines, traced on hover like PrereqFlow.
     const machines = page.locator('.fc-card[data-id^="m:"]');
     await machines.first().waitFor();
@@ -102,11 +109,13 @@ try {
       assert.ok(await page.locator(".fc-card.is-focus").count() === 1 && await page.locator(".fc-card.is-needs").count() > 10, "hover traces what feeds it");
       assert.ok(await page.locator(".fc-edges .e.u").count() > 0, "and what it feeds");
       await page.screenshot({ path: path.join(SHOTS, "desktop-planner-diagram.png") });
-      // Pinning the iron ingot splitter shows its exact build.
-      await page.locator('.fc-card[data-id="bal:IronIngot"]').click();
-      const det = page.locator(".fc-details").filter({ has: page.locator(".tag.ok") }).first();
+      // "Build this split" in the side panel pins the iron ingot splitter: its exact build opens in the drawer.
+      await page.locator(".ws-side .linkish", { hasText: "build this split" }).first().click();
+      const det = page.locator(".fc-drawer.wide");
       await det.waitFor();
       assert.ok((await det.textContent()).includes("parts adding up to 880"), "exact per-machine split");
+      assert.ok(await det.locator(".fc-card.k-split").count() > 10, "drawn splitter by splitter");
+      await page.locator(".fc-drawer .xbtn").click();
       await page.locator('.fc-card[data-id="m:IronPlate:0"]').click({ modifiers: ["Shift"] });
       assert.ok(await page.locator(".fc-chip").count() === 1, "shift+click highlights a tree");
     }
@@ -120,7 +129,7 @@ try {
     await page.evaluate(() => localStorage.setItem("satisfactorytools.splitters", JSON.stringify({ item: "IronIngot", total: 1314, outs: [{ label: "A", rate: 1234 }, { label: "B", rate: 63 }, { label: "C", rate: 17 }] })));
     await page.goto(base + "#/splitters");
     await page.reload();
-    await page.locator('.fc-card.k-out').first().waitFor();
+    await page.locator('.ws-stage .fc-card.k-out').first().waitFor();
     const split = await page.textContent(".view");
     assert.ok(split.includes("Ratio 1234 : 63 : 17") && split.includes("1234/1314") && split.includes("exact"), "1234:63:17 split exactly");
     if (tag === "desktop") await page.screenshot({ path: path.join(SHOTS, "desktop-splitters-1234.png") });

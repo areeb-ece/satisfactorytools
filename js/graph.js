@@ -10,7 +10,7 @@ import { splitView } from "./splitview.js";
 
 const belt = (item, rate) => { const c = carrier(item, rate); return (c.count > 1 ? c.count + " × " : "") + c.name; };
 
-export function factoryDiagram(res, { perMachine = true } = {}) {
+export function factoryDiagram(res, { perMachine = true, stage = false, toolbar = null } = {}) {
   const g = factoryGraph(res, { perMachine });
   const byId = new Map(g.nodes.map((n) => [n.id, n]));
   const name = (n) => {
@@ -59,5 +59,10 @@ export function factoryDiagram(res, { perMachine = true } = {}) {
     }
     return h("p", { class: "tiny", text: `${fmt(n.rate, 3)} ${unit(n.item)} on ${belt(n.item, n.rate)}.` });
   };
-  return flowchart({ nodes, edges }, { details, labels: true, tall: true });
+  const swatch = (cls, label) => h("span", { class: "k" }, h("span", { class: cls }), label);
+  return flowchart({ nodes, edges }, {
+    details, labels: true, tall: true, stage, toolbar,
+    wide: (n) => n.kind === "bal" && !n.liquid,
+    legend: [swatch("sw bal", "splitter / merger"), swatch("ln dot", "fluid"), swatch("ln", "belt")],
+  });
 }

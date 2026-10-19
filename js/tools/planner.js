@@ -4,9 +4,7 @@
 import { h, clear, load, save, seg, select, itemRows, itemLink, rate, stat, table, card, toolHead, toast } from "../ui.js";
 import { recipes, recipeById, buildings, items, itemName, fmt, pct, mw, carrier, defaultRecipes, isConversion, D } from "../lib/game.js";
 import { plan, distribution, OBJECTIVES } from "../lib/planner.js";
-import { splitView } from "../splitview.js";
 import { factoryDiagram } from "../graph.js";
-import { PLAN_TOL } from "../lib/factory.js";
 
 const KEY = "planner";
 export const DEFAULTS = {
@@ -52,6 +50,7 @@ export default {
   group: "Planning",
   color: 0,
   blurb: "Plan one factory for several products. Shared parts are made on one line each, raw materials are tallied, and every line's output is rationed between its consumers with a splitter plan.",
+  workspace: true,
   mount(view, args, params) {
     let st = load(KEY, DEFAULTS);
     if (params.get("p")) {
@@ -64,8 +63,9 @@ export default {
       history.replaceState(null, "", "#/planner");
     }
     const persist = () => save(KEY, st);
-    const out = h("div", { class: "stack" });
-    const diag = h("div", { class: "stack" });
+    const out = h("div", { class: "ws-results" });
+    const stage = h("div", { class: "ws-stage" });
+    let chart = null; // the diagram's API, for "show in diagram" from the side panel
     let timer;
     const update = () => { persist(); clearTimeout(timer); timer = setTimeout(run, 120); };
 
@@ -77,21 +77,23 @@ export default {
     };
     recCount.textContent = summary();
 
-    view.append(toolHead(this), h("div", { class: "tgrid" },
-      h("div", { class: "stack" },
-        card("Products", h("p", { class: "tiny", text: "What leaves the factory, per minute." }),
+    const panel = (title, ...kids) => h("section", { class: "panel" }, h("h2", { text: title }), kids);
+    view.append(h("div", { class: "ws-side" },
+        toolHead(this),
+        panel("Products", h("p", { class: "tiny", text: "What leaves the factory, per minute." }),
           itemRows(st.targets, update, { placeholder: "Add product", emptyText: "Add at least one product." })),
-        card("Inputs you already have",
+        panel("Inputs you already have",
           h("p", { class: "tiny", text: "Parts or ores arriving from elsewhere. They're used before anything is made; leave the rate empty for as much as needed. An input of an ore also caps how much of it the plan may use." }),
           itemRows(st.inputs, update, { kind: "all", placeholder: "Add input", allowEmptyRate: true })),
-        card("Options",
+        panel("Options",
           h("label", { class: "fl" }, "Optimise for", seg(Object.entries(OBJECTIVES).map(([value, label]) => ({ value, label: label.replace(/^(Fewest|Least) /, "") })), st.objective, (v) => { st.objective = v; update(); }, { wide: true, label: "Optimise for" })),
           select("Highest clock speed", [1, 1.5, 2, 2.5].map((c) => ({ value: c, label: pct(c, 0) + (c > 1 ? ` (${(c - 1) / 0.5} shard${c > 1.5 ? "s" : ""} each)` : " (no Power Shards)") })), st.maxClock, (v) => { st.maxClock = Number(v); update(); }),
           h("div", { class: "row" }, h("button", { class: "btn", type: "button", text: "Recipes…", on: { click: () => dialog.showModal() } }), recCount),
           h("div", { class: "row" },
             h("button", { class: "btn ghost small", type: "button", text: "Copy link to this plan", on: { click: copyLink } }),
-            h("button", { class: "btn ghost small", type: "button", text: "Start over", on: { click: reset } })))),
-      out), diag, dialog);
+            h("button", { class: "btn ghost small", type: "button", text: "Start over", on: { click: reset } }))),
+        out),
+      stage, dialog);
 
     function copyLink() {
       const { tab, ...p } = st;
@@ -108,15 +110,22 @@ export default {
 
     function run() {
       clear(out);
-      clear(diag);
+      clear(stage);
+      chart = null;
       const res = plan({ targets: st.targets.filter((t) => t.item && t.rate > 0), inputs: st.inputs.filter((t) => t.item), recipes: recipeSet(st), objective: st.objective, maxClock: st.maxClock });
-      if (res.status === "empty") return out.append(card(null, h("p", { class: "empty-note", text: "Add a product and a rate to see the factory." })));
-      if (res.status !== "ok") {
-        return out.append(card("No plan", h("p", { class: "note bad", text: res.message }),
-          res.suggest?.length ? h("div", { class: "row" }, res.suggest.map((r) => h("button", { class: "btn small", type: "button", text: "Turn on " + r.name, on: { click: () => { st.alts.push(r.id); recCount.textContent = summary(); update(); } } }))) : null));
+      if (res.status === "empty") {
+        stage.append(h("div", { class: "ws-empty", text: "Add a product and a rate to see the factory." }));
+        return;
       }
-      out.append(results(res, st, (tab) => { st.tab = tab; persist(); }));
-      diag.append(diagram(res, st, persist));
+      if (res.status !== "ok") {
+        const fix = res.suggest?.length ? h("div", { class: "row" }, res.suggest.map((r) => h("button", { class: "btn small", type: "button", text: "Turn on " + r.name, on: { click: () => { st.alts.push(r.id); recCount.textContent = summary(); update(); } } }))) : null;
+        out.append(panel("No plan", h("p", { class: "note bad", text: res.message }), fix));
+        stage.append(h("div", { class: "ws-empty" }, h("p", { class: "note bad", text: res.message })));
+        return;
+      }
+      const show = (id) => chart?.focus(id);
+      out.append(results(res, st, (tab) => { st.tab = tab; persist(); }, show));
+      stage.append(diagram(res, st, persist, (c) => (chart = c)));
     }
     run();
   },
@@ -133,9 +142,10 @@ function summaryStats(res) {
     fluids ? stat(fmt(fluids, 1) + " m³/min", "fluids (incl. water)") : null);
 }
 
-function results(res, st, setTab) {
+function results(res, st, setTab, find) {
   const panes = {
-    factory: () => factory(res),
+    factory: () => factory(res, find),
+    sources: () => sources(res, find),
     totals: () => totals(res),
   };
   const body = h("div", { class: "stack" });
@@ -146,65 +156,62 @@ function results(res, st, setTab) {
     tabs.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === k)));
     clear(body).append(panes[k]());
   };
-  for (const [k, label] of [["factory", "Factory"], ["totals", "Totals"]]) {
+  for (const [k, label] of [["factory", "Lines"], ["sources", "Sources"], ["totals", "Totals"]]) {
     tabs.append(h("button", { class: "tab", type: "button", role: "tab", "data-k": k, text: label, on: { click: () => show(k) } }));
   }
-  const c = card(null, summaryStats(res), tabs, body);
+  const c = h("section", { class: "panel" }, h("h2", { text: "Factory" }), summaryStats(res), tabs, body);
   show(st.tab);
   return c;
 }
 
-// The factory as a flowchart, full width under the inputs and results.
+// The factory as a flowchart filling the stage, PrereqFlow style.
 const MAX_MACHINE_CARDS = 600;
-function diagram(res, st, persist) {
-  const holder = h("div");
+function diagram(res, st, persist, setChart) {
   const machines = res.lines.reduce((t, L) => t + L.built, 0);
   const tooMany = machines > MAX_MACHINE_CARDS;
-  const draw = () => holder.replaceChildren(
-    tooMany && st.view !== "lines" ? h("p", { class: "note warn", text: `${fmt(machines, 0)} machines are too many to draw one by one, so each line is one card. The Factory tab lists every line.` }) : "",
-    factoryDiagram(res, { perMachine: st.view !== "lines" && !tooMany }));
-  const c = h("section", { class: "card" },
-    h("header", null, h("h2", { text: "Factory diagram" }), h("span", { class: "spacer" }),
-      seg([{ value: "machines", label: `Each machine (${machines})` }, { value: "lines", label: `Lines (${res.lines.length})` }], st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" })),
-    h("p", { class: "tiny", text: "Raw materials on the left, products on the right. Every machine is its own card; a splitter or merger card sits wherever an item's belts split or join, with the exact ratio. Pin one to see how to build it. ◆ marks an alternate recipe; dotted links carry fluids." }),
-    holder);
+  const holder = h("div", { class: "ws-holder" });
+  const draw = () => {
+    const toolbar = h("div", { class: "ws-tool" },
+      seg([{ value: "machines", label: `Each machine (${fmt(machines, 0)})` }, { value: "lines", label: `Lines (${res.lines.length})` }], st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" }));
+    const fc = factoryDiagram(res, { perMachine: st.view !== "lines" && !tooMany, stage: true, toolbar });
+    setChart(fc.chart);
+    holder.replaceChildren(
+      tooMany && st.view !== "lines" ? h("p", { class: "note warn ws-banner", text: `${fmt(machines, 0)} machines are too many to draw one by one, so each line is one card.` }) : "",
+      fc);
+  };
   draw();
-  return c;
+  return holder;
 }
 
 const consumerName = (c) => (c.kind === "line" ? c.line.recipe.name + " line" : c.kind === "target" ? "Product (leaves the factory)" : "Surplus (sink or store it)");
 const producerName = (p, item) => (p.kind === "line" ? p.line.recipe.name + " line" : p.kind === "input" ? "your input" : itemName(item) + " (extracted)");
 
-function factory(res) {
-  const color = new Map(res.lines.map((L, i) => [L, i % 8]));
+function factory(res, show) {
   return h("div", { class: "stack" },
-    h("section", { class: "stack" },
-      h("h3", { class: "lbl", text: "1 · Sources: everything that comes into the factory" }),
-      sources(res)),
-    h("section", { class: "stack" },
-      h("h3", { class: "lbl", text: "2 · Production lines, from raw materials to products" }),
-      h("div", { class: "lines" }, res.lines.map((L) => line(L, res, color.get(L))))));
+    h("p", { class: "tiny", text: "Production lines, from raw materials to products. \"Show\" finds a line's machines in the diagram; a split's \"build\" opens its exact splitters and mergers." }),
+    h("div", { class: "lines" }, res.lines.map((L, i) => line(L, res, i % 8, show))));
 }
 
-function sources(res) {
+function sources(res, show) {
   const ext = (r) => {
-    if (r.kind !== "raw") return "";
+    if (r.kind !== "raw") return "your input";
     if (r.item === "Water") return `${Math.ceil(r.rate / 120 - 1e-9)} Water Extractors`;
     if (r.item === "LiquidOil") return `${Math.ceil(r.rate / 120 - 1e-9)} Oil Extractors (normal)`;
     if (r.item === "NitrogenGas") return `${Math.ceil(r.rate / 60 - 1e-9)} well extractors (normal)`;
-    if (D.extractors.MinerMk3.res.includes(r.item)) return `${Math.ceil(r.rate / 240 - 1e-9)} Miner Mk.3 (normal)`;
+    if (D.extractors.MinerMk3.res.includes(r.item)) return `${Math.ceil(r.rate / 240 - 1e-9)} Miner Mk.3 at 100% (normal)`;
     return "gathered by hand or from power plants";
   };
-  return table([
-    { head: "Item", cell: (r) => [itemLink(r.item), r.kind === "input" ? h("span", { class: "tag ok", text: "input" }) : ""] },
-    { head: "Rate", n: true, cell: (r) => rate(r.item, r.rate) },
-    { head: "Carried by", cell: (r) => { const c = carrier(r.item, r.rate); return (c.count > 1 ? c.count + " × " : "") + c.name; } },
-    { head: "At 100% clock", cell: (r) => h("span", { class: "dim", text: ext(r) }) },
-    { head: "Feeds", cell: (r) => h("ul", null, distribution(res, r.item).map((c) => h("li", null, `${consumerName(c)}: ${fmt(c.rate)} (${fmt(c.share * 100, 1)}%)`))) },
-  ], res.raw);
+  return h("div", { class: "lines" }, res.raw.map((r) => {
+    const c = carrier(r.item, r.rate);
+    return h("article", { class: "line cc2" },
+      h("header", null, h("b", null, itemLink(r.item)), h("span", { text: rate(r.item, r.rate) }), h("span", { class: "spacer" }),
+        h("button", { class: "linkish", type: "button", text: "show", on: { click: () => show("src:" + r.item) } })),
+      h("p", { class: "tiny", text: `${c.count > 1 ? c.count + " × " : ""}${c.name} · ${ext(r)}` }),
+      h("ul", { class: "feeds" }, distribution(res, r.item).map((x) => h("li", null, `→ ${consumerName(x)}: ${fmt(x.rate)} (${fmt(x.share * 100, 1)}%)`))));
+  }));
 }
 
-function line(L, res, ci) {
+function line(L, res, ci, show) {
   const b = buildings[L.recipe.b];
   const ins = L.in.map(([it, n]) => {
     const from = res.balance.get(it).producers;
@@ -215,20 +222,20 @@ function line(L, res, ci) {
   const outs = L.out.map(([it, n]) => {
     const cons = distribution(res, it);
     const mine = n / res.balance.get(it).made;
-    const parts = cons.map((c) => ({ label: consumerName(c).replace(/ \(.*\)$/, ""), rate: c.rate * mine }));
     const c = carrier(it, n);
     return h("li", { class: "stack" },
       h("div", null, h("span", { class: "r", text: rate(it, n) }), " ", itemLink(it), h("span", { class: "s", text: ` · ${c.count > 1 ? c.count + " × " : ""}${c.name}` })),
       cons.length > 1 ? h("div", { class: "share", role: "img", "aria-label": cons.map((x) => `${consumerName(x)} ${fmt(x.share * 100, 1)}%`).join(", ") },
         cons.map((x, i) => h("i", { vars: { width: (x.share * 100).toFixed(3) + "%", "--c": `var(--c${(ci + i + 1) % 8})` } }))) : null,
       h("ul", null, cons.map((x) => h("li", null, h("span", { class: "s", text: "→" }), consumerName(x), h("span", { class: "r", text: fmt(x.rate * mine) }), h("span", { class: "s", text: fmt(x.share * 100, 1) + "%" })))),
-      cons.length > 1 ? h("details", { class: "more" }, h("summary", { text: "Splitter plan" }), h("div", null, splitView(parts, it, { total: n, tol: PLAN_TOL }))) : null);
+      cons.length > 1 || res.balance.get(it).producers.length > 1 ? h("button", { class: "linkish", type: "button", text: "build this split ›", on: { click: () => show("bal:" + it) } }) : null);
   });
   return h("article", { class: "line cc" + ci },
     h("header", null, h("b", { text: L.recipe.name }), L.recipe.alt ? h("span", { class: "tag alt", text: "alternate" }) : null,
       h("span", { text: `${L.built} × ${b.name} at ${pct(L.clock)}` }),
       Math.abs(L.exact - L.built) > 1e-6 ? h("span", { class: "dim", text: `(${fmt(L.exact, 3)} at 100%)` }) : null,
-      h("span", { class: "spacer" }), h("span", { text: mw(L.power) })),
+      h("span", { class: "spacer" }), h("span", { text: mw(L.power) }),
+      h("button", { class: "linkish", type: "button", text: "show", on: { click: () => show(`m:${L.recipe.id}:0`) } })),
     h("div", { class: "flowgrid" },
       h("div", null, h("h4", { text: "In" }), h("ul", null, ins)),
       h("div", null, h("h4", { text: "Out" }), h("ul", null, outs))));
