@@ -24,7 +24,7 @@ This is an independent fan project, not affiliated with Coffee Stain Studios.
 | Machines | **Overclock & Somersloop calculator** | Machine count and clock layouts for a target rate, Power Shards, Somersloops and power. |
 | | **Miner & node calculator** | Miners, oil and water extractors by purity and clock, belt and pipe limits, resource wells. |
 | | **Power plant planner** | Generators, fuel, water, extractors and nuclear waste for a target, or the power a fuel supply gives. Geothermal too. |
-| | **Belt splitter ratio helper** | Splits one belt into any ratio, exactly (1234:63:17 included), with splitters, mergers and a loop back to the input, drawn as a flowchart of every belt. |
+| | **Belt splitter & merger helper** | Any number of input belts, at any rates, shared out over the outputs in any ratio, exactly (1234:63:17 included), with splitters, mergers and loops back, drawn as a flowchart of every belt. |
 | Logistics | **Train & drone throughput** | Items per minute for a route, Freight Cars for a target, drone battery use. |
 | | **AWESOME Sink calculator** | Points per minute, when the next coupons print, most valuable items. |
 
@@ -125,7 +125,20 @@ Any ratio is split exactly, with no rounding:
 3. Each output takes whole subtrees that add up to its weight, and the N − D spare parts
    loop back into a merger at the input.
 
-Every belt then carries a whole number of 1/D shares of the input. `js/lib/belts.js`
+Every belt then carries a whole number of 1/D shares of the input.
+
+Several input belts, of any rates, are a balancer, and there are two ways to build one
+(`balance` in `js/lib/belts.js`). The tool works out both and keeps the cheaper:
+
+- **Merge:** join every input into one belt, then split it as above.
+- **Route:** decide which input feeds which output, split each input exactly into its own
+  pieces, and merge the pieces at each output. An input that matches an output goes
+  straight to it, and no belt carries the whole total.
+
+A build whose busiest belt wouldn't fit on a Mk.6 belt loses to one that fits. Outputs
+are a ratio of everything coming in, so they don't have to add up to the inputs. The
+planner's splitter cards use the same balancer, with each machine feeding them as an
+input. `js/lib/belts.js`
 builds the explicit network of splitters and mergers, and the unit tests follow every
 belt of it. They check that each splitter divides evenly, that each merger takes at most
 three belts and loses nothing, and that each output gets exactly its weight. The cases

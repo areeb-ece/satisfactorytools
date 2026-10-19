@@ -223,6 +223,183 @@ export function network(weights, plan, inputs = [1]) {
   return { nodes, edges };
 }
 
+// ── several inputs ────────────────────────────────────────────────────────────
+// A balancer: belts of any rates in, outputs in any ratio out, every output exact.
+// Two ways to build it, and the cheaper wins:
+//   merge   join every input into one belt, then split that belt exactly
+//   route   decide which input feeds which output (a small transport problem), split
+//           each input exactly into its own pieces, and merge the pieces at each output.
+//           No belt then carries the whole total, and an input that matches an output
+//           goes straight there.
+// Amounts are exact: whole "units", chosen so every input and every output is a whole
+// number of them; each belt is num/den units.
+
+// Inputs (rates) and output shares (scaled to the input total) → whole units.
+function units(inputs, outputs, rel) {
+  const fin = inputs.map((v) => rational(v, rel));
+  const w = toWeights(outputs, rel).weights.map(big);
+  const W = w.reduce((a, b) => a + b, 0n);
+  let L = 1n;
+  for (const [, q] of fin) L = (L / gcd(L, q)) * q;
+  let A = fin.map(([p, q]) => (p * L) / q);
+  const T = A.reduce((a, b) => a + b, 0n);
+  const g = gcd(T, W);
+  A = A.map((a) => a * (W / g));
+  let B = w.map((x) => (T / g) * x);
+  const all = [...A, ...B].reduce((a, b) => gcd(a, b), 0n) || 1n;
+  A = A.map((a) => a / all);
+  B = B.map((b) => b / all);
+  const U = A.reduce((a, b) => a + b, 0n);
+  if (U > 2n ** 50n) throw new Error("the amounts need more than 2^50 parts");
+  return { A: A.map(Number), B: B.map(Number), U: Number(U) };
+}
+
+// Who feeds whom: the north-west corner rule over one ordering of inputs and outputs,
+// after first pairing any input and output that match exactly.
+function allocate(A, B, orderA, orderB) {
+  const a = [...A], b = [...B], flows = [];
+  for (const i of orderA) for (const j of orderB) {
+    if (a[i] && a[i] === b[j]) { flows.push([i, j, a[i]]); a[i] = 0; b[j] = 0; }
+  }
+  let x = 0, y = 0;
+  const ia = orderA.filter((i) => a[i]), jb = orderB.filter((j) => b[j]);
+  while (x < ia.length && y < jb.length) {
+    const i = ia[x], j = jb[y], f = Math.min(a[i], b[j]);
+    flows.push([i, j, f]);
+    a[i] -= f; b[j] -= f;
+    if (!a[i]) x++;
+    if (!b[j]) y++;
+  }
+  return flows;
+}
+
+const mergersFor = (k) => Math.ceil(Math.max(0, k - 1) / 2);
+const planCost = (p) => p.splitters + p.mergers + (p.loop ? (4 * p.loop) / p.D : 0);
+// Weights with their common factor taken out (the plan only cares about the ratio).
+const reduce = (w) => { const g = w.reduce((a, b) => gcdN(a, b), 0) || 1; return w.map((x) => x / g); };
+
+/**
+ * @param {number[]} inputs   rates of the belts coming in
+ * @param {number[]} outputs  shares: rates, or any ratio (scaled to the input total)
+ * @param {{rel?: number, capacity?: number}} [o]  rel: tolerance for calculated rates (see
+ *   toWeights); capacity: the most one belt can carry, in the inputs' units, so a build
+ *   whose busiest belt wouldn't fit loses to one that does
+ * @returns {{ strategy, A, B, U, splitters, mergers, loops, nodes, edges }}
+ *   nodes: { id, kind: in | split | merge | out, index?, ways? }
+ *   edges: { from, to, num, den, loop? }  carrying num/den units (U units = all the input)
+ */
+export function balance(inputs, outputs, o = {}) {
+  const { A, B, U } = units(inputs, outputs, o.rel);
+  const n = A.length, m = B.length;
+  const options = [];
+  const rate = inputs.reduce((t, x) => t + Number(x), 0) / U; // input units → per minute
+  const tooBig = (units) => (o.capacity && units * rate > o.capacity + 1e-9 ? 1000 : 0);
+
+  // merge everything, then one split
+  const whole = splitPlan(reduce(B));
+  options.push({ strategy: "merge", cost: planCost(whole) + mergersFor(n) + tooBig((U * whole.N) / whole.D), plan: whole });
+  // route each input to its own outputs (tried over a few orderings)
+  if (n > 1) {
+    const idx = (len) => Array.from({ length: len }, (_, i) => i);
+    const desc = (arr) => idx(arr.length).sort((p, q) => arr[q] - arr[p] || p - q);
+    const tried = new Set();
+    for (const [oa, ob] of [[idx(n), idx(m)], [desc(A), desc(B)], [desc(A), idx(m)], [idx(n), desc(B)]]) {
+      const flows = allocate(A, B, oa, ob);
+      const key = flows.map((f) => f.join(",")).sort().join(";");
+      if (tried.has(key)) continue;
+      tried.add(key);
+      let cost = 0;
+      const per = [];
+      for (let i = 0; i < n; i++) {
+        const mine = flows.filter((f) => f[0] === i);
+        const w = reduce(mine.map((f) => f[2]));
+        const plan = splitPlan(w);
+        per.push({ i, flows: mine, w, plan });
+        cost += planCost(plan) + tooBig((A[i] * plan.N) / plan.D);
+      }
+      for (let j = 0; j < m; j++) cost += mergersFor(flows.filter((f) => f[1] === j).length);
+      options.push({ strategy: "route", cost, per, flows });
+    }
+  }
+  const best = options.reduce((x, y) => (y.cost < x.cost - 1e-9 ? y : x));
+  return { ...build(best, A, B, U), strategy: best.strategy, A, B, U };
+}
+
+// The chosen build as one network of nodes and belts.
+function build(best, A, B, U) {
+  const nodes = [], edges = [];
+  const ins = A.map((_, i) => { const id = "in" + i; nodes.push({ id, kind: "in", index: i }); return id; });
+  const outs = B.map((_, j) => { const id = "out" + j; nodes.push({ id, kind: "out", index: j }); return id; });
+  let k = 0;
+  const pending = B.map(() => []); // belts arriving at each output: [node, num, den]
+  // Copy one sub-network (from network()) in, its input wired to `from`, its outputs collected.
+  const graft = (sub, from, scale, outIndex) => {
+    const rename = new Map();
+    for (const nd of sub.nodes) {
+      if (nd.kind === "in") rename.set(nd.id, from);
+      else if (nd.kind === "out") rename.set(nd.id, { out: outIndex(nd.out) });
+      else { const id = nd.kind + "_" + k++; rename.set(nd.id, id); nodes.push({ id, kind: nd.kind, ways: nd.ways, loop: nd.loop }); }
+    }
+    for (const e of sub.edges) {
+      const to = rename.get(e.to), num = e.parts * scale[0], den = scale[1];
+      if (typeof to === "object") pending[to.out].push([rename.get(e.from), num, den, e.loop]);
+      else edges.push({ from: rename.get(e.from), to, num, den, loop: e.loop });
+    }
+  };
+  let splitters = 0, mergers = 0, loops = 0;
+  if (best.strategy === "merge") {
+    const sub = network(reduce(B), best.plan, A);
+    // network() counts parts of 1/D of the input, and the input is all U units.
+    const inIds = sub.nodes.filter((nd) => nd.kind === "in").map((nd) => nd.id);
+    const rename = new Map(inIds.map((id, i) => [id, ins[i]]));
+    for (const nd of sub.nodes) {
+      if (nd.kind === "in") continue;
+      if (nd.kind === "out") { rename.set(nd.id, outs[nd.out]); continue; }
+      const id = nd.kind + "_" + k++;
+      rename.set(nd.id, id);
+      nodes.push({ id, kind: nd.kind, ways: nd.ways, loop: nd.loop });
+    }
+    // Parts are 1/D of the input; the input is U units, so a part is U/D = gB units. Every
+    // belt is a whole number of units (inputs and their merges are sums of whole inputs,
+    // splitter belts whole parts); rounding only clears the float noise network() leaves
+    // on the input side.
+    const gB = U / best.plan.D;
+    for (const e of sub.edges) {
+      const units = e.parts * gB, num = Math.round(units);
+      if (Math.abs(units - num) > 1e-6 * Math.max(1, num)) throw new Error("a belt that isn't whole units: " + units);
+      edges.push({ from: rename.get(e.from), to: rename.get(e.to), num, den: 1, loop: e.loop });
+    }
+    splitters = best.plan.splitters;
+    loops = best.plan.loop ? 1 : 0;
+  } else {
+    for (const p of best.per) {
+      if (p.flows.length === 1) { pending[p.flows[0][1]].push([ins[p.i], p.flows[0][2], 1]); continue; }
+      const sub = network(p.w, p.plan, [1]);
+      // parts are 1/D of this input, which carries A_i units
+      graft(sub, ins[p.i], [A[p.i], p.plan.D], (o) => p.flows[o][1]);
+      splitters += p.plan.splitters;
+      if (p.plan.loop) loops++;
+    }
+  }
+  // Each output joins the belts that reach it, three at a time.
+  pending.forEach((belts, j) => {
+    let list = belts.slice();
+    while (list.length > 1) {
+      const take = list.splice(0, 3), id = "merge_" + k++;
+      nodes.push({ id, kind: "merge" });
+      for (const [from, num, den, loop] of take) edges.push({ from, to: id, num, den, loop });
+      // sum of fractions, kept exact
+      let num = 0, den = 1;
+      for (const [, a, b] of take) { num = num * b + a * den; den *= b; const g2 = gcdN(num, den); num /= g2; den /= g2; }
+      list.push([id, num, den]);
+    }
+    if (list.length) edges.push({ from: list[0][0], to: outs[j], num: list[0][1], den: list[0][2], loop: list[0][3] });
+  });
+  mergers = nodes.filter((nd) => nd.kind === "merge").length;
+  return { nodes, edges, splitters, mergers, loops };
+}
+const gcdN = (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; };
+
 /** How a belt feeding `machines` identical machines is usually built. */
 export function manifoldNote(machines) {
   return machines <= 1 ? "" : `A manifold (one belt with a splitter at each of the ${machines} machines) fills up and then gives each its share; it just takes a while to saturate.`;

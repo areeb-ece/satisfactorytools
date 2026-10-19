@@ -113,7 +113,8 @@ try {
       await page.locator(".ws-side .linkish", { hasText: "build this split" }).first().click();
       const det = page.locator(".fc-drawer.wide");
       await det.waitFor();
-      assert.ok((await det.textContent()).includes("parts adding up to 880"), "exact per-machine split");
+      const dt = await det.textContent();
+      assert.ok(dt.includes("22 outputs") && dt.includes("31/880") && dt.includes("exact"), "exact per-machine split");
       assert.ok(await det.locator(".fc-card.k-split").count() > 10, "drawn splitter by splitter");
       await page.locator(".fc-drawer .xbtn").click();
       await page.locator('.fc-card[data-id="m:IronPlate:0"]').click({ modifiers: ["Shift"] });
@@ -131,8 +132,17 @@ try {
     await page.reload();
     await page.locator('.ws-stage .fc-card.k-out').first().waitFor();
     const split = await page.textContent(".view");
-    assert.ok(split.includes("Ratio 1234 : 63 : 17") && split.includes("1234/1314") && split.includes("exact"), "1234:63:17 split exactly");
+    assert.ok(split.includes("Ratio 1234 : 63 : 17") && split.includes("617/657") && split.includes("exact"), "1234:63:17 split exactly");
     if (tag === "desktop") await page.screenshot({ path: path.join(SHOTS, "desktop-splitters-1234.png") });
+
+    // Several inputs of different rates, shared out exactly.
+    await page.evaluate(() => localStorage.setItem("satisfactorytools.splitters", JSON.stringify({ item: "IronIngot", ins: [{ label: "North", rate: 240 }, { label: "South", rate: 135 }, { label: "Train", rate: 45 }], outs: [{ label: "Plates", rate: 180 }, { label: "Rods", rate: 120 }, { label: "Screws", rate: 120 }] })));
+    await page.reload();
+    await page.locator('.ws-stage .fc-card.k-out').first().waitFor();
+    assert.equal(await page.locator(".ws-stage .fc-card.k-src").count(), 3, "three input belts drawn");
+    const multi = await page.textContent(".view");
+    assert.ok(multi.includes("420/min coming in on 3 belts") && multi.includes("exact"), "three inputs balanced exactly");
+    if (tag === "desktop") await page.screenshot({ path: path.join(SHOTS, "desktop-splitters-inputs.png") });
 
     // Milestones → planner hand-off.
     await page.goto(base + "#/milestones");

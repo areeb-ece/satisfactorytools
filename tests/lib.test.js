@@ -8,7 +8,7 @@ import { plan, distribution } from "../js/lib/planner.js";
 import { baseRate, machineAt, layouts, fillLast } from "../js/lib/machines.js";
 import { extractor, well, clockForCap, forTarget as minersFor } from "../js/lib/extract.js";
 import { burn, forTarget, fromSupply, geothermal } from "../js/lib/power.js";
-import { toWeights, splitPlan, network, rational } from "../js/lib/belts.js";
+import { toWeights, splitPlan, network, rational, balance } from "../js/lib/belts.js";
 import { factoryGraph, balancerPlan, ratioLabel } from "../js/lib/factory.js";
 import { layout } from "../js/lib/flowlayout.js";
 import { train, carsFor, drone } from "../js/lib/logistics.js";
@@ -213,6 +213,64 @@ test("belts: every splitter network is exact, 1234:63:17 included", () => {
   assert.ok(big.splitters + big.mergers < 40, "and it stays a reasonable build");
 });
 
+// The same check for a whole balancer (several inputs): amounts are exact fractions
+// (num/den units), so they're compared with BigInt cross-multiplication.
+const gcdN = (a, b) => { while (b) [a, b] = [b, a % b]; return a; };
+function verifyBalance(r) {
+  const B = (x) => BigInt(x);
+  const into = new Map(), from = new Map();
+  for (const e of r.edges) {
+    (into.get(e.to) ?? into.set(e.to, []).get(e.to)).push(e);
+    (from.get(e.from) ?? from.set(e.from, []).get(e.from)).push(e);
+  }
+  const sum = (l) => (l ?? []).reduce(([n, d], e) => [n * B(e.den) + B(e.num) * d, d * B(e.den)], [0n, 1n]);
+  const eq = ([a, b], [c, d]) => a * d === c * b;
+  let splitters = 0, mergers = 0;
+  for (const n of r.nodes) {
+    const i = into.get(n.id) ?? [], o = from.get(n.id) ?? [];
+    if (n.kind === "split") {
+      splitters++;
+      assert.equal(i.length, 1);
+      assert.equal(o.length, n.ways);
+      for (const e of o) assert.ok(eq([B(e.num) * B(n.ways), B(e.den)], [B(i[0].num), B(i[0].den)]), "splitter divides evenly");
+    } else if (n.kind === "merge") {
+      mergers++;
+      assert.ok(i.length >= 2 && i.length <= 3, "merger takes 2–3 belts");
+      assert.equal(o.length, 1);
+      assert.ok(eq(sum(i), sum(o)), "merger loses nothing");
+    } else if (n.kind === "out") assert.ok(eq(sum(i), [B(r.B[n.index]), 1n]), `output ${n.index} gets exactly its share`);
+    else if (n.kind === "in") assert.ok(eq(sum(o), [B(r.A[n.index]), 1n]), `input ${n.index} all goes somewhere`);
+  }
+  assert.equal(splitters, r.splitters);
+  assert.equal(mergers, r.mergers);
+  assert.equal(r.A.reduce((a, b) => a + b, 0), r.U);
+  assert.equal(r.B.reduce((a, b) => a + b, 0), r.U);
+}
+
+test("balance: several inputs of any rates, any output ratio, exact", () => {
+  const cases = [
+    [[100, 50], [75, 75]], [[60, 60, 60], [90, 90]], [[480, 270, 120, 60], [1, 1, 1]],
+    [[1234], [1234, 63, 17]], [[700, 614], [1234, 63, 17]], [[45.5, 13.25, 7], [3, 2]],
+    [[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]], [[29.4642857142857, 29.4642857142857, 29.4642857142857], [30, 30, 28.39285714285714]],
+    [[10, 20, 30], [60]], // a plain merge
+  ];
+  let seed = 11;
+  const rnd = (n) => 1 + ((seed = (seed * 48271) % 2147483647) % n);
+  for (let k = 0; k < 30; k++) cases.push([Array.from({ length: 1 + (k % 4) }, () => rnd(900)), Array.from({ length: 1 + ((k + 1) % 5) }, () => rnd(50))]);
+  for (const [ins, outs] of cases) verifyBalance(balance(ins, outs));
+  // Matching inputs and outputs go straight through, with nothing to build.
+  const direct = balance([1, 2, 3, 4, 5], [5, 4, 3, 2, 1]);
+  assert.equal(direct.strategy, "route");
+  assert.equal(direct.splitters + direct.mergers, 0);
+  // Outputs that don't add up to the input are a ratio of it.
+  const r = balance([300], [1, 2]);
+  assert.deepEqual([r.B[0] * 2, r.B[1]], [r.B[1], r.B[1]]);
+  // A merged belt that won't fit (two 1000/min inputs, one belt max 1200) isn't chosen.
+  const big = balance([1000, 1000], [1, 1, 1, 1], { capacity: 1200 });
+  assert.equal(big.strategy, "route");
+  verifyBalance(big);
+});
+
 test("factory graph: a card per machine, exact splitters between them", () => {
   const r = plan({ targets: [{ item: "ModularFrame", rate: 10 }, { item: "Rotor", rate: 10 }, { item: "IronPlateReinforced", rate: 5 }], recipes: G.defaultRecipes() });
   const g = factoryGraph(r);
@@ -224,9 +282,10 @@ test("factory graph: a card per machine, exact splitters between them", () => {
   assert.equal(ing.outs.length, 22);
   near(ing.ins.reduce((t, x) => t + x.rate, 0), ing.total, 1e-9);
   const bp = balancerPlan(ing);
-  assert.deepEqual([...new Set(bp.weights)].sort((a, b) => b - a), [64, 31]);
-  verifyNetwork(bp.weights, bp.plan, bp.net, 14);
-  assert.match(ratioLabel(bp.weights), /^(6×64 : 16×31|16×31 : 6×64)$/);
+  verifyBalance(bp);
+  const g0 = bp.B.reduce((a, b) => gcdN(a, b), 0);
+  assert.deepEqual([...new Set(bp.B.map((b) => b / g0))].sort((a, b) => b - a), [64, 31]);
+  assert.match(ratioLabel(bp.B.map((b) => b / g0)), /^(6×64 : 16×31|16×31 : 6×64)$/);
   // Every edge's rate is conserved through every splitter card.
   for (const b of g.nodes.filter((n) => n.kind === "bal")) {
     near(g.edges.filter((e) => e.to === b.id).reduce((t, e) => t + e.rate, 0), g.edges.filter((e) => e.from === b.id).reduce((t, e) => t + e.rate, 0), 1e-9);
