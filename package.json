@@ -1,0 +1,16 @@
+{
+  "name": "satisfactorytools",
+  "version": "1.0.0",
+  "description": "Small calculators and planners for Satisfactory, in one page. Runs entirely in the browser.",
+  "private": true,
+  "type": "module",
+  "author": "areeb",
+  "homepage": "https://areeb-ece.github.io/satisfactorytools/",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "test:browser": "node tests/browser-check.js",
+    "data": "node scripts/build-data.js",
+    "serve": "python3 -m http.server 8080"
+  }
+}
