@@ -1,11 +1,12 @@
 // Production planner: several products in one factory. Shared intermediates are made
 // on one line each, and every line's output is rationed between the lines (and
 // products) that need it, with a splitter plan for each split.
-import { h, clear, load, save, num, seg, select, itemRows, itemLink, rate, stat, table, card, toolHead, toast } from "../ui.js";
+import { h, clear, load, save, seg, select, itemRows, itemLink, rate, stat, table, card, toolHead, toast } from "../ui.js";
 import { recipes, recipeById, buildings, items, itemName, fmt, pct, mw, carrier, defaultRecipes, isConversion, D } from "../lib/game.js";
 import { plan, distribution, OBJECTIVES } from "../lib/planner.js";
 import { splitView } from "../splitview.js";
-import { factoryGraph } from "../graph.js";
+import { factoryDiagram } from "../graph.js";
+import { PLAN_TOL } from "../lib/factory.js";
 
 const KEY = "planner";
 export const DEFAULTS = {
@@ -16,6 +17,7 @@ export const DEFAULTS = {
   objective: "resources",
   maxClock: 1,
   tab: "factory",
+  view: "machines", // the diagram: one card per machine, or per line
 };
 
 /** The recipe set a saved plan uses. */
@@ -63,6 +65,7 @@ export default {
     }
     const persist = () => save(KEY, st);
     const out = h("div", { class: "stack" });
+    const diag = h("div", { class: "stack" });
     let timer;
     const update = () => { persist(); clearTimeout(timer); timer = setTimeout(run, 120); };
 
@@ -88,7 +91,7 @@ export default {
           h("div", { class: "row" },
             h("button", { class: "btn ghost small", type: "button", text: "Copy link to this plan", on: { click: copyLink } }),
             h("button", { class: "btn ghost small", type: "button", text: "Start over", on: { click: reset } })))),
-      out), dialog);
+      out), diag, dialog);
 
     function copyLink() {
       const { tab, ...p } = st;
@@ -105,6 +108,7 @@ export default {
 
     function run() {
       clear(out);
+      clear(diag);
       const res = plan({ targets: st.targets.filter((t) => t.item && t.rate > 0), inputs: st.inputs.filter((t) => t.item), recipes: recipeSet(st), objective: st.objective, maxClock: st.maxClock });
       if (res.status === "empty") return out.append(card(null, h("p", { class: "empty-note", text: "Add a product and a rate to see the factory." })));
       if (res.status !== "ok") {
@@ -112,6 +116,7 @@ export default {
           res.suggest?.length ? h("div", { class: "row" }, res.suggest.map((r) => h("button", { class: "btn small", type: "button", text: "Turn on " + r.name, on: { click: () => { st.alts.push(r.id); recCount.textContent = summary(); update(); } } }))) : null));
       }
       out.append(results(res, st, (tab) => { st.tab = tab; persist(); }));
+      diag.append(diagram(res, st, persist));
     }
     run();
   },
@@ -131,11 +136,6 @@ function summaryStats(res) {
 function results(res, st, setTab) {
   const panes = {
     factory: () => factory(res),
-    diagram: () => {
-      const box = h("div", { class: "diagram" }, factoryGraph(res));
-      const btn = h("button", { class: "btn small ghost", type: "button", text: "Fit to width", on: { click: () => { btn.textContent = box.classList.toggle("fit") ? "Actual size" : "Fit to width"; } } });
-      return h("div", { class: "stack" }, h("div", { class: "row" }, h("span", { class: "tiny", text: "Raw materials on the left, products on the right; belt width follows the rate. ◆ marks an alternate recipe." }), h("span", { class: "spacer" }), btn), box);
-    },
     totals: () => totals(res),
   };
   const body = h("div", { class: "stack" });
@@ -146,11 +146,29 @@ function results(res, st, setTab) {
     tabs.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === k)));
     clear(body).append(panes[k]());
   };
-  for (const [k, label] of [["factory", "Factory"], ["diagram", "Diagram"], ["totals", "Totals"]]) {
+  for (const [k, label] of [["factory", "Factory"], ["totals", "Totals"]]) {
     tabs.append(h("button", { class: "tab", type: "button", role: "tab", "data-k": k, text: label, on: { click: () => show(k) } }));
   }
   const c = card(null, summaryStats(res), tabs, body);
   show(st.tab);
+  return c;
+}
+
+// The factory as a flowchart, full width under the inputs and results.
+const MAX_MACHINE_CARDS = 600;
+function diagram(res, st, persist) {
+  const holder = h("div");
+  const machines = res.lines.reduce((t, L) => t + L.built, 0);
+  const tooMany = machines > MAX_MACHINE_CARDS;
+  const draw = () => holder.replaceChildren(
+    tooMany && st.view !== "lines" ? h("p", { class: "note warn", text: `${fmt(machines, 0)} machines are too many to draw one by one, so each line is one card. The Factory tab lists every line.` }) : "",
+    factoryDiagram(res, { perMachine: st.view !== "lines" && !tooMany }));
+  const c = h("section", { class: "card" },
+    h("header", null, h("h2", { text: "Factory diagram" }), h("span", { class: "spacer" }),
+      seg([{ value: "machines", label: `Each machine (${machines})` }, { value: "lines", label: `Lines (${res.lines.length})` }], st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" })),
+    h("p", { class: "tiny", text: "Raw materials on the left, products on the right. Every machine is its own card; a splitter or merger card sits wherever an item's belts split or join, with the exact ratio. Pin one to see how to build it. ◆ marks an alternate recipe; dotted links carry fluids." }),
+    holder);
+  draw();
   return c;
 }
 
@@ -204,7 +222,7 @@ function line(L, res, ci) {
       cons.length > 1 ? h("div", { class: "share", role: "img", "aria-label": cons.map((x) => `${consumerName(x)} ${fmt(x.share * 100, 1)}%`).join(", ") },
         cons.map((x, i) => h("i", { vars: { width: (x.share * 100).toFixed(3) + "%", "--c": `var(--c${(ci + i + 1) % 8})` } }))) : null,
       h("ul", null, cons.map((x) => h("li", null, h("span", { class: "s", text: "→" }), consumerName(x), h("span", { class: "r", text: fmt(x.rate * mine) }), h("span", { class: "s", text: fmt(x.share * 100, 1) + "%" })))),
-      cons.length > 1 ? h("details", { class: "more" }, h("summary", { text: "Splitter plan" }), h("div", null, splitView(parts, it))) : null);
+      cons.length > 1 ? h("details", { class: "more" }, h("summary", { text: "Splitter plan" }), h("div", null, splitView(parts, it, { total: n, tol: PLAN_TOL }))) : null);
   });
   return h("article", { class: "line cc" + ci },
     h("header", null, h("b", { text: L.recipe.name }), L.recipe.alt ? h("span", { class: "tag alt", text: "alternate" }) : null,
