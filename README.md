@@ -93,6 +93,13 @@ Each line's output is shared between its consumers in proportion.
 
 ### The factory diagram
 
+The planner and the splitter tool are laid out like PrereqFlow: the chart fills the
+window, with a legend strip above it, zoom controls floating in the corner and a drawer
+that slides in from the right with the details of a pinned card. Everything else (the
+products, inputs, options, the list of lines, sources and totals) lives in a side panel
+on the left, and the list of tools folds behind the **Tools** button. On a phone the
+side panel stacks above the chart.
+
 The diagram is laid out like PrereqFlow's charts. Columns run from raw materials to
 products, links that span several columns run through lanes between the cards, and
 cards are ordered and placed to keep links straight with few crossings

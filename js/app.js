@@ -14,7 +14,9 @@ import sink from "./tools/sink.js";
 
 const TOOLS = [planner, itemsTool, compare, milestones, overclock, extract, power, splitters, logistics, sink];
 const GROUPS = ["Planning", "Machines", "Logistics"];
+const app = document.getElementById("app");
 const nav = document.getElementById("nav");
+const navBtn = document.getElementById("btnNav");
 const view = document.getElementById("view");
 const scroller = document.getElementById("scroll");
 
@@ -57,6 +59,12 @@ function route() {
     else a.removeAttribute("aria-current");
   }
   clear(view);
+  // Workspace tools (the planner, the splitters) are a chart filling the window with a
+  // side panel, as in PrereqFlow; the tool list folds away behind the "Tools" button.
+  const ws = !!tool?.workspace;
+  app.classList.toggle("ws-mode", ws);
+  view.classList.toggle("ws", ws);
+  setNav(false);
   if (!tool) {
     document.title = "Satisfactory Tools";
     view.append(...home());
@@ -81,6 +89,16 @@ function fallbackTheme() {
     label();
   });
 }
+
+function setNav(open) {
+  app.classList.toggle("nav-open", open);
+  navBtn.setAttribute("aria-expanded", String(open));
+}
+navBtn.addEventListener("click", () => setNav(!app.classList.contains("nav-open")));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") setNav(false); });
+document.addEventListener("pointerdown", (e) => {
+  if (app.classList.contains("nav-open") && !nav.contains(e.target) && !navBtn.contains(e.target)) setNav(false);
+});
 
 drawNav();
 fallbackTheme();
