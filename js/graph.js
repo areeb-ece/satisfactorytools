@@ -30,7 +30,7 @@ export function factoryDiagram(res, { perMachine = true, stage = false, toolbar 
       try { if (!n.liquid) ratio = ratioLabel(toWeights(n.outs.map((o) => o.rate), PLAN_TOL).weights); } catch (e) { ratio = "too fine to build"; }
       const kind = n.liquid ? "Pipe junction" : n.ins.length > 1 && n.outs.length > 1 ? "Merge + split" : n.ins.length > 1 ? "Merger" : "Splitter";
       return { ...n, w: 200, h: Math.max(62, 16 + 9 * Math.max(n.ins.length, n.outs.length)), title: kind, tag: itemName(n.item),
-        sub: `${n.ins.length} in → ${n.outs.length} out · ${fmt(n.total)}${isLiquid(n.item) ? " m³" : ""}/min`, note: n.liquid ? "fluids share by demand" : n.outs.length > 1 ? "ratio " + ratio : belt(n.item, n.total) };
+        sub: `${fmt(n.total)}${isLiquid(n.item) ? " m³" : ""}/min`, note: n.liquid ? "fluids share by demand" : n.outs.length > 1 ? "ratio " + ratio : belt(n.item, n.total) };
     }
     const tag = n.kind === "src" ? (n.input ? "input" : "raw") : n.kind === "out" ? "product" : "surplus";
     return { ...n, w: 176, h: 56, title: itemName(n.item), tag, sub: `${fmt(n.rate)} ${unit(n.item)}`, note: n.kind === "extra" ? "sink or store" : belt(n.item, n.rate) };

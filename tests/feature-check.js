@@ -274,7 +274,7 @@ for (const [w, h, t] of [[1360, 900, "desktop"], [390, 844, "phone"]]) {
     ok(await page.locator(".fc-drawer").isHidden(), "closes");
   });
   await check("planner: diagram per machine or per line (saved)", async () => {
-    await page.getByRole("radio", { name: "Lines (7)" }).click();
+    await page.getByRole("radio", { name: "Lines" }).click();
     await wait(300);
     ok((await page.locator('.fc-card[data-id^="m:"]').count()) === 7, "7 line cards");
     ok((await store("planner")).view === "lines", "saved");
@@ -382,11 +382,11 @@ for (const [w, h, t] of [[1360, 900, "desktop"], [390, 844, "phone"]]) {
   });
 
   // ── recipes & items, alternates, milestones ──────────────────────────────
-  await check("items: search, count, Enter opens the first match, facts and recipes", async () => {
+  await check("items: search, Enter opens the first match, facts and recipes", async () => {
     await go("items/Computer", { fresh: true });
-    ok((await text(".count")) === "152 items", "count");
+    ok((await text(".count")) === "", "no count before a search");
     await page.getByLabel("Search items").fill("screw");
-    ok((await text(".count")).includes("match"), "match count");
+    ok((await text(".count")).includes("Enter opens the first"), "match hint");
     await page.getByLabel("Search items").press("Enter");
     await wait(200);
     ok((await hash()).startsWith("#/items/") && (await hash()) !== "#/items/Computer", "opened the first match");

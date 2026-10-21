@@ -28,7 +28,7 @@ export default {
       const best = (k) => Math.min(...ok.map((r) => r[k]));
       const resKeys = [...new Set(ok.flatMap((r) => Object.keys(r.raw)))].filter((k) => k !== "Water");
       const per = st.rate || 1;
-      out.append(card(`${itemName(st.item)} · ${rows.length} recipe${rows.length === 1 ? "" : "s"}`,
+      out.append(card(itemName(st.item),
         h("p", { class: "sd-hint tiny", text: `Each recipe is planned for ${fmt(per)} ${unit(st.item)}, using ${st.base === "planner" ? "the planner's recipes" : "standard recipes"} for every other part. Raw figures are per unit made; power, machines and leftovers are for the whole plan. The best value in each column is marked.` }),
         table([
           { head: "Recipe", cell: (r) => [r.recipe.name, " ", r.recipe.alt ? h("span", { class: "sd-tag tag alt", text: "alt" }) : "", h("div", { class: "sd-hint tiny", text: buildings[r.recipe.b].name })] },

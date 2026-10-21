@@ -65,14 +65,12 @@ export default {
       const capacity = isLiquid(st.item) ? PIPES.at(-1).rate : BELTS[st.belt].rate;
       const p = splitParts(outs.map((o) => ({ label: o.label || "?", rate: o.rate })), st.item, { inputs: ins.map((o) => ({ label: o.label || "?", rate: o.rate })), capacity });
       if (p.error) { summary.append(p.error); stage.append(h("div", { class: "ws-empty" }, p.error.cloneNode(true))); return; }
-      const b = p.build, belt = isLiquid(st.item) ? PIPES.at(-1) : BELTS[st.belt];
       view.imageInfo = () => ({
         what: `${fmt(total, 3)}/min on ${ins.length} belt${ins.length === 1 ? "" : "s"} → ${outs.map((o) => o.label || "?").join(", ")}`,
-        facts: `${b.splitters} splitter${b.splitters === 1 ? "" : "s"}, ${b.mergers} merger${b.mergers === 1 ? "" : "s"} · no belt over ${belt.name} (${fmt(belt.rate)}/min) · exact`,
         defaults: ["Build"],
         kinds: { src: "input belt", out: "output" },
       });
-      summary.append(h("p", { class: "sd-hint tiny", text: `${fmt(total, 3)}/min coming in on ${ins.length} belt${ins.length === 1 ? "" : "s"}.` }), ...p.summary, p.table);
+      summary.append(...p.summary, p.table);
       stage.append(p.tooBig ? h("div", { class: "ws-empty" }, p.tooBig) : flowchart(p.graph, {
         labels: true, stage: true,
         legend: [
