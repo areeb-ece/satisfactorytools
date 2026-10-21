@@ -69,7 +69,7 @@ export default {
       view.imageInfo = () => ({
         what: `${fmt(total, 3)}/min on ${ins.length} belt${ins.length === 1 ? "" : "s"} → ${outs.map((o) => o.label || "?").join(", ")}`,
         facts: `${b.splitters} splitter${b.splitters === 1 ? "" : "s"}, ${b.mergers} merger${b.mergers === 1 ? "" : "s"} · no belt over ${belt.name} (${fmt(belt.rate)}/min) · exact`,
-        sections: ["Build"],
+        defaults: ["Build"],
         kinds: { src: "input belt", out: "output" },
       });
       summary.append(h("p", { class: "sd-hint tiny", text: `${fmt(total, 3)}/min coming in on ${ins.length} belt${ins.length === 1 ? "" : "s"}.` }), ...p.summary, p.table);

@@ -30,7 +30,7 @@ export function splitParts(outs, item, o = {}) {
   const inputs = o.inputs?.length ? o.inputs : [{ label: "In", rate: o.total || 0 }];
   const known = inputs.every((i) => i.rate > 0);
   const list = item && isLiquid(item) ? PIPES : BELTS;
-  const limit = known && (item || o.capacity) ? o.capacity || list.at(-1).rate : null;
+  const limit = known && (item || o.capacity) ? (item && isLiquid(item) ? list.at(-1).rate : o.capacity || list.at(-1).rate) : null;
   const limitName = limit ? list.find((b) => b.rate === limit)?.name ?? fmt(limit) + "/min" : "";
   let r;
   try {
@@ -107,7 +107,7 @@ export function splitParts(outs, item, o = {}) {
     { head: "Output", cell: (x) => x.label },
     { head: "Exact share", n: true, cell: (x) => frac(x.b, U) },
     { head: total ? "Per minute" : "Of the input", n: true, cell: (x) => (total ? fmt((total * x.b) / U, 4) : fmt((100 * x.b) / U, 4) + "%") },
-    ...(limit && total ? [{ head: "Belts", cell: (x) => { const bs = r.outBelts.filter((b) => b.index === x.j); return bs.length > 1 ? `${bs.length} × ${limitName}` : carrier(item || "IronIngot", (total * x.b) / U).name; } }] : []),
+    ...(limit && total ? [{ head: "Belts", cell: (x) => { const bs = r.outBelts.filter((b) => b.index === x.j); return bs.length > 1 ? `${bs.length} × ${limitName}` : carrier(item || "IronIngot", (total * x.b) / U, limit).name; } }] : []),
   ], outs.map((x, i) => ({ label: x.label || "Output " + (i + 1), b: r.B[i], j: i }))) : null;
   return { summary, graph: { nodes, edges }, table: shares, tooBig, build: r };
 }

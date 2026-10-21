@@ -2,7 +2,7 @@
 // on one line each, and every line's output is rationed between the lines (and
 // products) that need it, with a splitter plan for each split.
 import { h, clear, load, save, seg, segField, select, itemRows, itemLink, rate, stat, table, toolHead, toast, btn, closeBtn, fold, icon } from "../ui.js";
-import { recipes, recipeById, buildings, items, itemName, fmt, pct, mw, carrier, defaultRecipes, isConversion, D } from "../lib/game.js";
+import { recipes, recipeById, buildings, items, itemName, fmt, pct, mw, carrier, defaultRecipes, isConversion, D, BELTS, unit } from "../lib/game.js";
 import { plan, distribution, OBJECTIVES } from "../lib/planner.js";
 import { factoryDiagram } from "../graph.js";
 
@@ -16,7 +16,10 @@ export const DEFAULTS = {
   maxClock: 1,
   tab: "factory",
   view: "machines", // the diagram: one card per machine, or per line
+  belt: BELTS.length - 1, // the fastest belt you can build (index into BELTS)
 };
+/** The fastest belt a saved plan may use, per minute. */
+const capOf = (st) => BELTS[st.belt >= 0 && st.belt < BELTS.length ? st.belt : BELTS.length - 1].rate;
 
 /** The recipe set a saved plan uses. */
 export function recipeSet(st) {
@@ -78,9 +81,10 @@ export default {
     recCount.textContent = summary();
 
     const panel = (title, ...kids) => h("section", { class: "panel" }, h("h2", { text: title }), kids);
-    const optSummary = () => `${OBJECTIVES[st.objective]} · up to ${pct(st.maxClock, 0)} · ${summary()}`;
-    const options = fold("Options", st.objective !== "resources" || st.maxClock !== 1 || st.alts.length > 0 || st.off.length > 0, optSummary(),
+    const optSummary = () => `${OBJECTIVES[st.objective]} · up to ${pct(st.maxClock, 0)} · ${BELTS[st.belt]?.name.replace("Belt ", "") ?? "Mk.6"} belts · ${summary()}`;
+    const options = fold("Options", st.objective !== "resources" || st.maxClock !== 1 || st.belt !== BELTS.length - 1 || st.alts.length > 0 || st.off.length > 0, optSummary(),
       segField("Optimise for", Object.entries(OBJECTIVES).map(([value, label]) => ({ value, label: label.replace(/^(Fewest|Least) (\w)/, (m, w, c) => c.toUpperCase()) })), st.objective, (v) => { st.objective = v; update(); }, { wide: true }),
+      segField("Fastest belt you can build", BELTS.map((b, i) => ({ value: String(i), label: b.name.replace("Belt ", ""), title: `${b.name}: ${fmt(b.rate)}/min` })), String(st.belt), (v) => { st.belt = +v; update(); }, { wide: true }),
       select("Highest clock speed", [1, 1.5, 2, 2.5].map((c) => ({ value: c, label: pct(c, 0) + (c > 1 ? ` (${(c - 1) / 0.5} shard${c > 1.5 ? "s" : ""} each)` : " (no Power Shards)") })), st.maxClock, (v) => { st.maxClock = Number(v); update(); }),
       h("div", { class: "sd-field fl" }, h("span", { class: "sd-label", text: "Recipes" }),
         h("div", { class: "row" }, btn("Choose recipes…", () => dialog.showModal()), recCount)));
@@ -132,11 +136,14 @@ export default {
       const built = res.lines.reduce((t, L) => t + L.built, 0);
       view.imageInfo = () => ({
         what: st.targets.filter((t) => t.item && t.rate > 0).map((t) => `${fmt(t.rate)} ${itemName(t.item)}/min`).join(", "),
-        facts: `${fmt(built, 0)} machines on ${res.lines.length} line${res.lines.length === 1 ? "" : "s"} · ${mw(res.power)}`,
+        facts: `${fmt(built, 0)} machines on ${res.lines.length} line${res.lines.length === 1 ? "" : "s"} · ${mw(res.power)} · belts up to ${BELTS[st.belt]?.name ?? "Belt Mk.6"}`,
         kinds: { src: "raw or input", bal: "splitter / merger", out: "product" },
+        panels: imagePanels(res, capOf(st)),
+        skip: ["Products", "Factory"], // the totals below say the same, laid out for a picture
+        defaults: ["Factory totals", "Products", "Raw resources", "Production lines"],
       });
       const show = (id) => chart?.focus(id);
-      out.append(results(res, st, (tab) => { st.tab = tab; persist(); }, show));
+      out.append(results(res, st, (tab) => { st.tab = tab; persist(); }, show, capOf(st)));
       stage.append(diagram(res, st, persist, (c) => (chart = c)));
     }
     run();
@@ -154,10 +161,10 @@ function summaryStats(res) {
     fluids ? stat(fmt(fluids, 1) + " m³/min", "fluids (incl. water)") : null);
 }
 
-function results(res, st, setTab, find) {
+function results(res, st, setTab, find, cap) {
   const panes = {
-    factory: () => factory(res, find),
-    sources: () => sources(res, find),
+    factory: () => factory(res, find, cap),
+    sources: () => sources(res, find, cap),
     totals: () => totals(res),
   };
   const body = h("div", { class: "stack", role: "tabpanel", id: "planner-pane" });
@@ -194,7 +201,7 @@ function diagram(res, st, persist, setChart) {
   const draw = () => {
     const toolbar = h("div", { class: "ws-tool" },
       seg([{ value: "machines", label: `Each machine (${fmt(machines, 0)})`, title: tooMany ? "Too many machines to draw one by one" : null }, { value: "lines", label: `Lines (${res.lines.length})` }], tooMany ? "lines" : st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" }));
-    const fc = factoryDiagram(res, { perMachine: st.view !== "lines" && !tooMany, stage: true, toolbar });
+    const fc = factoryDiagram(res, { perMachine: st.view !== "lines" && !tooMany, stage: true, toolbar, cap: capOf(st) });
     setChart(fc.chart);
     holder.replaceChildren(
       tooMany && st.view !== "lines" ? h("p", { class: "sd-callout sd-warn note warn ws-banner", text: `${fmt(machines, 0)} machines are too many to draw one by one, so each line is one card.` }) : "",
@@ -207,13 +214,13 @@ function diagram(res, st, persist, setChart) {
 const consumerName = (c) => (c.kind === "line" ? c.line.recipe.name + " line" : c.kind === "target" ? "Product (leaves the factory)" : "Surplus (sink or store it)");
 const producerName = (p, item) => (p.kind === "line" ? p.line.recipe.name + " line" : p.kind === "input" ? "your input" : itemName(item) + " (extracted)");
 
-function factory(res, show) {
+function factory(res, show, cap) {
   return h("div", { class: "stack" },
     h("p", { class: "sd-hint tiny", text: "Production lines, from raw materials to products. \"Show\" finds a line's machines in the diagram; \"Build this split\" opens its exact splitters and mergers." }),
-    h("div", { class: "lines" }, res.lines.map((L, i) => line(L, res, i % 8, show))));
+    h("div", { class: "lines" }, res.lines.map((L, i) => line(L, res, i % 8, show, cap))));
 }
 
-function sources(res, show) {
+function sources(res, show, cap) {
   const ext = (r) => {
     if (r.kind !== "raw") return "your input";
     if (r.item === "Water") return `${Math.ceil(r.rate / 120 - 1e-9)} Water Extractors`;
@@ -223,7 +230,7 @@ function sources(res, show) {
     return "gathered by hand or from power plants";
   };
   return h("div", { class: "lines" }, res.raw.map((r) => {
-    const c = carrier(r.item, r.rate);
+    const c = carrier(r.item, r.rate, cap);
     return h("article", { class: "line cc2" },
       h("header", null, h("b", null, itemLink(r.item)), h("span", { text: rate(r.item, r.rate) }), h("span", { class: "spacer" }),
         showBtn(() => show("src:" + r.item))),
@@ -236,7 +243,7 @@ function sources(res, show) {
 const consumerColour = (x, res) => (x.kind === "line" ? `var(--c${res.lines.indexOf(x.line) % 8})` : x.kind === "target" ? "var(--ok)" : "var(--warn)");
 const showBtn = (fn) => btn("Show", fn, { small: true, kind: "ghost", ico: "locate", cls: "linkish", title: "Find it in the diagram" });
 
-function line(L, res, ci, show) {
+function line(L, res, ci, show, cap) {
   const b = buildings[L.recipe.b];
   const ins = L.in.map(([it, n]) => {
     const from = res.balance.get(it).producers;
@@ -247,7 +254,7 @@ function line(L, res, ci, show) {
   const outs = L.out.map(([it, n]) => {
     const cons = distribution(res, it);
     const mine = n / res.balance.get(it).made;
-    const c = carrier(it, n);
+    const c = carrier(it, n, cap);
     return h("li", { class: "stack" },
       h("div", null, h("span", { class: "r", text: rate(it, n) }), " ", itemLink(it), h("span", { class: "s", text: ` · ${c.count > 1 ? c.count + " × " : ""}${c.name}` })),
       cons.length > 1 ? h("div", { class: "share", role: "img", "aria-label": cons.map((x) => `${consumerName(x)} ${fmt(x.share * 100, 1)}%`).join(", ") },
@@ -264,6 +271,34 @@ function line(L, res, ci, show) {
     h("div", { class: "flowgrid" },
       h("div", null, h("h3", { text: "In" }), h("ul", null, ins)),
       h("div", null, h("h3", { text: "Out" }), h("ul", null, outs))));
+}
+
+// The plan as panels for an image: headline figures, then what leaves, what comes in, every
+// line and the buildings, as tables a picture can lay out in columns (see js/export.js).
+function imagePanels(res, cap) {
+  const belt = (item, r) => { const c = carrier(item, r, cap); return (c.count > 1 ? c.count + " × " : "") + c.name; };
+  const per = (item, r) => `${fmt(r, 2)} ${unit(item)}`;
+  const built = res.lines.reduce((t, L) => t + L.built, 0);
+  const solids = res.raw.filter((r) => r.kind === "raw" && !items[r.item].liquid).reduce((t, r) => t + r.rate, 0);
+  const fluids = res.raw.filter((r) => r.kind === "raw" && items[r.item].liquid).reduce((t, r) => t + r.rate, 0);
+  const surplus = [...res.balance.values()].flatMap((e) => e.consumers.filter((c) => c.kind === "surplus").map((c) => ({ item: e.item, rate: c.rate })));
+  const tableOf = (head, num, rows) => ({ t: "table", head, num, rows: rows.map((cells) => ({ cells })) });
+  const by = Object.entries(res.machines).map(([b, n]) => ({ b, n, power: res.lines.filter((L) => L.recipe.b === b).reduce((t, L) => t + L.power, 0) })).sort((a, b) => b.power - a.power);
+  return [
+    { title: "Factory totals", blocks: [{ t: "stats", items: [
+      { v: mw(res.power), k: "power, as built", hi: true },
+      { v: fmt(built, 0), k: `machines on ${res.lines.length} line${res.lines.length === 1 ? "" : "s"}` },
+      { v: fmt(solids, 1) + "/min", k: "solid resources in" },
+      ...(fluids ? [{ v: fmt(fluids, 1) + " m³/min", k: "fluids in" }] : []),
+      { v: String(res.targets.length), k: `product${res.targets.length === 1 ? "" : "s"} out` },
+    ] }, ...(surplus.length ? [{ t: "p", tone: "warn", text: `Surplus: ${surplus.map((x) => `${per(x.item, x.rate)} ${itemName(x.item)}`).join(", ")}. Sink it, store it, or add a product that uses it.` }] : [])] },
+    { title: "Products", blocks: [tableOf(["Product", "Per minute", "Belt"], [false, true, false], res.targets.map((t) => [itemName(t.item), per(t.item, t.rate), belt(t.item, t.rate)]))] },
+    { title: "Raw resources", blocks: [tableOf(["Resource", "Per minute", "Belt", "From"], [false, true, false, false], res.raw.map((r) => [itemName(r.item), per(r.item, r.rate), belt(r.item, r.rate), r.kind === "input" ? "your input" : "extracted"]))] },
+    { title: "Production lines", blocks: [tableOf(["Recipe", "Machines", "Power", "Makes per minute", "Uses per minute"], [false, false, true, false, false],
+      res.lines.map((L) => [L.recipe.name + (L.recipe.alt ? " (alt)" : ""), `${L.built} × ${buildings[L.recipe.b].name} @ ${pct(L.clock)}`, mw(L.power),
+        L.out.map(([i, n]) => `${fmt(n, 2)} ${itemName(i)}`).join(", "), L.in.map(([i, n]) => `${fmt(n, 2)} ${itemName(i)}`).join(", ")]))] },
+    { title: "Buildings", blocks: [tableOf(["Building", "Count", "Power"], [false, true, true], by.map((r) => [buildings[r.b].name, String(r.n), mw(r.power)]))] },
+  ];
 }
 
 function totals(res) {

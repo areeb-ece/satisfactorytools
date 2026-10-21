@@ -49,8 +49,8 @@ export const PLAN_TOL = 1e-7;
  * The exact splitter/merger build for a splitter node: every machine feeding it in,
  * every consumer out, each getting exactly its rate (see balance in belts.js).
  */
-export function balancerPlan(bal) {
-  return balance(bal.ins.map((i) => i.rate), bal.outs.map((o) => o.rate), { rel: PLAN_TOL, capacity: 1200 });
+export function balancerPlan(bal, capacity = 1200) {
+  return balance(bal.ins.map((i) => i.rate), bal.outs.map((o) => o.rate), { rel: PLAN_TOL, capacity });
 }
 
 /** "6×64 : 16×31": a splitter's weights, grouped by runs of equal outputs. */
