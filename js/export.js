@@ -7,7 +7,7 @@
 //     part on screen, or the build inside the pinned splitter card;
 //   - the tool's panels (inputs, results, tables), under the diagram or on their own.
 // Tools can describe themselves by setting view.imageInfo to a function returning (all optional):
-//   what, facts   the title block's two lines
+//   what          the title block's line under the tool name
 //   kinds         legend names for card kinds
 //   panels        panels of their own, [{ title, blocks }] (blocks as readSections makes them)
 //   skip          titles of the page's panels those replace
@@ -181,7 +181,7 @@ function chartPart(chart, scope, o, P) {
       if (tc) tc.forEach((ci, i) => ops.push({ t: "rect", x: x + p.w - 8 - 10 * (tc.length - i), y: y + p.h - 11, w: 7, h: 7, r: 3.5, fill: P.h[ci] }));
     }
   };
-  return { width: cw, height: ch, draw, kinds, cls, back: lay.edges.some((e) => e.kind === "back"), cards: graph.nodes.length, trees: o.highlights ? st.trees.filter((t) => lay.nodes.has(t.id)).map((t) => ({ ...t, title: graph.nodes.find((n) => n.id === t.id)?.title })) : [] };
+  return { width: cw, height: ch, draw, kinds, cls, back: lay.edges.some((e) => e.kind === "back"), trees: o.highlights ? st.trees.filter((t) => lay.nodes.has(t.id)).map((t) => ({ ...t, title: graph.nodes.find((n) => n.id === t.id)?.title })) : [] };
 }
 
 // ── the panels ────────────────────────────────────────────────────────────────
@@ -475,7 +475,6 @@ function layoutPanels(secs, W, P, n) {
 const columnWidth = (secs) => Math.min(860, Math.max(460, ...secs.flatMap((s) => s.blocks.filter((b) => b.t === "table").map((b) => naturalCols(b).reduce((a, c) => a + c, 0)))));
 
 // ── the whole image ───────────────────────────────────────────────────────────
-const today = () => new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
 function buildSpec(o, ctx) {
   const P = palette(o.theme);
@@ -539,8 +538,6 @@ function buildSpec(o, ctx) {
     const room = W - 2 * pad - (W - badgeW - pad > 420 ? badgeW + 16 : 0);
     const what = [ctx.tool.title, info.what].filter(Boolean).join(" · ") + (o.scope === "trees" ? " · highlighted trees" : o.scope === "chain" && part ? ` · chain of ${chart.graph.nodes.find((n) => n.id === chart.state.pinned)?.title ?? "the pinned card"}` : o.scope === "window" ? " · visible area" : o.scope === "inner" ? ` · ${ctx.innerTitle}` : "");
     ops.push({ t: "text", x: pad, y: 56, text: fit(what, room, 13, 400, "text"), size: 13, color: P.ink2, font: "text" });
-    const facts = [info.facts, part ? `${part.cards} cards` : "", today()].filter(Boolean).join(" · ");
-    ops.push({ t: "text", x: pad, y: 74, text: fit(facts, room, 11.5, 400, "text"), size: 11.5, color: P.ink3, font: "text" });
     if (W - badgeW - pad > 420) {
       const bx = W - pad - badgeW, by = 16;
       ops.push({ t: "rect", x: bx, y: by, w: badgeW, h: 54, r: 12, fill: P.accent, a: 0.12 });
@@ -608,8 +605,8 @@ export function openExport(tool, view) {
   const ctx = { tool, info, chart, inner, innerTitle: pinned ? `${pinned.title}${pinned.tag ? " (" + pinned.tag + ")" : ""}, built` : "", sections };
 
   const scopes = chart ? [
-    { id: "chart", label: `The whole diagram · ${chart.graph.nodes.length} cards`, hint: "Every card and belt on the chart." },
-    { id: "trees", label: `Highlighted trees${st.trees.length ? " · " + st.trees.length : ""}`, hint: st.trees.length ? "Only the highlighted trees, laid out on their own." : "Shift+click a card first to highlight its tree.", ok: st.trees.length > 0 },
+    { id: "chart", label: "The whole diagram", hint: "Every card and belt on the chart." },
+    { id: "trees", label: "Highlighted trees", hint: st.trees.length ? "Only the highlighted trees, laid out on their own." : "Shift+click a card first to highlight its tree.", ok: st.trees.length > 0 },
     { id: "chain", label: pinned ? `${pinned.title}: what feeds it and what it feeds` : "The pinned card's chain", hint: pinned ? "The pinned card with everything upstream and downstream of it, laid out on its own." : "Click a card first to pin it.", ok: !!pinned },
     ...(inner ? [{ id: "inner", label: `${pinned.title}: its build`, hint: "The splitters and mergers inside the pinned card, belt by belt." }] : []),
     { id: "window", label: "The part on screen", hint: "Exactly what the chart shows now, at its current layout." },

@@ -133,12 +133,10 @@ export default {
         stage.append(h("div", { class: "ws-empty" }, h("div", { class: "empty" }, h("b", { text: "No factory to draw" }), h("p", { text: res.message }))));
         return;
       }
-      const built = res.lines.reduce((t, L) => t + L.built, 0);
       view.imageInfo = () => ({
         what: st.targets.filter((t) => t.item && t.rate > 0).map((t) => `${fmt(t.rate)} ${itemName(t.item)}/min`).join(", "),
-        facts: `${fmt(built, 0)} machines on ${res.lines.length} line${res.lines.length === 1 ? "" : "s"} · ${mw(res.power)} · belts up to ${BELTS[st.belt]?.name ?? "Belt Mk.6"}`,
         kinds: { src: "raw or input", bal: "splitter / merger", out: "product" },
-        panels: imagePanels(res, capOf(st)),
+        panels: imagePanels(res, capOf(st), BELTS[st.belt]?.name ?? "Belt Mk.6"),
         skip: ["Products", "Factory"], // the totals below say the same, laid out for a picture
         defaults: ["Factory totals", "Products", "Raw resources", "Production lines"],
       });
@@ -200,7 +198,7 @@ function diagram(res, st, persist, setChart) {
   const holder = h("div", { class: "ws-holder" });
   const draw = () => {
     const toolbar = h("div", { class: "ws-tool" },
-      seg([{ value: "machines", label: `Each machine (${fmt(machines, 0)})`, title: tooMany ? "Too many machines to draw one by one" : null }, { value: "lines", label: `Lines (${res.lines.length})` }], tooMany ? "lines" : st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" }));
+      seg([{ value: "machines", label: "Each machine", title: tooMany ? "Too many machines to draw one by one" : null }, { value: "lines", label: "Lines" }], tooMany ? "lines" : st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" }));
     const fc = factoryDiagram(res, { perMachine: st.view !== "lines" && !tooMany, stage: true, toolbar, cap: capOf(st) });
     setChart(fc.chart);
     holder.replaceChildren(
@@ -275,7 +273,7 @@ function line(L, res, ci, show, cap) {
 
 // The plan as panels for an image: headline figures, then what leaves, what comes in, every
 // line and the buildings, as tables a picture can lay out in columns (see js/export.js).
-function imagePanels(res, cap) {
+function imagePanels(res, cap, beltName) {
   const belt = (item, r) => { const c = carrier(item, r, cap); return (c.count > 1 ? c.count + " × " : "") + c.name; };
   const per = (item, r) => `${fmt(r, 2)} ${unit(item)}`;
   const built = res.lines.reduce((t, L) => t + L.built, 0);
@@ -290,7 +288,7 @@ function imagePanels(res, cap) {
       { v: fmt(built, 0), k: `machines on ${res.lines.length} line${res.lines.length === 1 ? "" : "s"}` },
       { v: fmt(solids, 1) + "/min", k: "solid resources in" },
       ...(fluids ? [{ v: fmt(fluids, 1) + " m³/min", k: "fluids in" }] : []),
-      { v: String(res.targets.length), k: `product${res.targets.length === 1 ? "" : "s"} out` },
+      { v: beltName.replace("Belt ", ""), k: "fastest belt" },
     ] }, ...(surplus.length ? [{ t: "p", tone: "warn", text: `Surplus: ${surplus.map((x) => `${per(x.item, x.rate)} ${itemName(x.item)}`).join(", ")}. Sink it, store it, or add a product that uses it.` }] : [])] },
     { title: "Products", blocks: [tableOf(["Product", "Per minute", "Belt"], [false, true, false], res.targets.map((t) => [itemName(t.item), per(t.item, t.rate), belt(t.item, t.rate)]))] },
     { title: "Raw resources", blocks: [tableOf(["Resource", "Per minute", "Belt", "From"], [false, true, false, false], res.raw.map((r) => [itemName(r.item), per(r.item, r.rate), belt(r.item, r.rate), r.kind === "input" ? "your input" : "extracted"]))] },

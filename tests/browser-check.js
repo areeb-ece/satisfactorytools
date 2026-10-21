@@ -145,7 +145,7 @@ try {
     await page.locator('.ws-stage .fc-card.k-out').first().waitFor();
     assert.equal(await page.locator(".ws-stage .fc-card.k-src").count(), 3, "three input belts drawn");
     const multi = await page.textContent(".view");
-    assert.ok(multi.includes("420/min coming in on 3 belts") && multi.includes("exact"), "three inputs balanced exactly");
+    assert.ok(multi.includes("Ratio 3 : 2 : 2") && multi.includes("exact"), "three inputs balanced exactly");
     if (tag === "desktop") await page.screenshot({ path: path.join(SHOTS, "desktop-splitters-inputs.png") });
 
     // The build saves as an image (PNG and SVG), drawn in the page: nothing leaves it.

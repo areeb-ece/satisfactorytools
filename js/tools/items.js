@@ -30,7 +30,7 @@ export default {
         list.append(h("button", { type: "button", role: "listitem", "aria-current": String(id === sel), on: { click: () => (location.hash = "#/items/" + id) } },
           h("span", { text: itemName(id) }), h("i", { text: k ? k + " recipe" + (k > 1 ? "s" : "") : D.resources.includes(id) ? "resource" : "gathered" })));
       }
-      count.textContent = t ? (n ? `${n} item${n === 1 ? "" : "s"} match. Enter opens the first.` : `No item matches “${q.value.trim()}”.`) : `${ids.length} items`;
+      count.textContent = t ? (n ? "Enter opens the first." : `No item matches “${q.value.trim()}”.`) : "";
     }
     q.addEventListener("input", drawList);
     q.addEventListener("keydown", (e) => { if (e.key === "Enter") list.querySelector("button")?.click(); });
@@ -64,8 +64,8 @@ function itemDetail(id) {
   ].filter(Boolean);
   return [
     card(null, h("h2", { class: "item-name", text: itemName(id) }), h("dl", { class: "facts" }, facts.map(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })]))),
-    card(`Made by · ${make.length}`, make.length ? recipeRows(make, id) : h("p", { class: "sd-hint tiny", text: "Nothing makes this; it comes from the world." })),
-    card(`Used in · ${use.length}`, use.length ? recipeRows(use, null) : h("p", { class: "sd-hint tiny", text: "No machine recipe uses this " + (it.energy ? "(it's a fuel)." : ".") })),
+    card("Made by", make.length ? recipeRows(make, id) : h("p", { class: "sd-hint tiny", text: "Nothing makes this; it comes from the world." })),
+    card("Used in", use.length ? recipeRows(use, null) : h("p", { class: "sd-hint tiny", text: "No machine recipe uses this " + (it.energy ? "(it's a fuel)." : ".") })),
     h("p", { class: "sd-hint tiny", text: "Rates are for one machine at 100% clock. " + (it.liquid ? "Fluids are in " + unit(id) + "." : "") }),
   ];
 }
