@@ -6,10 +6,12 @@
 //
 // The page's security policy forbids style attributes, so every position and colour
 // is set through el.style.setProperty (CSSOM), never written into markup.
-import { h, s, clear } from "./ui.js";
+import { h, s, clear, btn, closeBtn, icon } from "./ui.js";
 import { layout } from "./lib/flowlayout.js";
 
 let uid = 0;
+// Reduced motion, or the shared settings panel's Animations switch, means no smooth scrolling either.
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "off";
 const N_HL = 6;
 const DIRS = { up: "what feeds it", down: "what it feeds", both: "both ways" };
 
@@ -67,8 +69,6 @@ export function flowchart(graph, opts = {}) {
       h("span", { class: "marks" }));
     for (const [k, v] of [["left", p.x], ["top", p.y], ["width", p.w], ["height", p.h]]) el.style.setProperty(k, v + "px");
     if (n.cc != null) el.style.setProperty("--cc", `var(--c${n.cc % 8})`);
-    // stagger the entrance by column, as PrereqFlow does
-    el.style.setProperty("--in", Math.min(700, p.col * 45) + "ms");
     el.style.setProperty("--sd", (9 + ((p.x * 7 + p.y * 13) % 70) / 10).toFixed(1) + "s");
     el.style.setProperty("--sdl", "-" + (((p.x * 3 + p.y) % 160) / 10).toFixed(1) + "s");
     el.dataset.id = n.id;
@@ -81,15 +81,16 @@ export function flowchart(graph, opts = {}) {
   const sizer = h("div", { class: "fc-sizer" }, world);
   const view = h("div", { class: "fc-view" + (opts.tall ? " tall" : "") }, sizer);
   const readout = h("div", { class: "fc-readout", hidden: true });
-  const pct = h("button", { type: "button", class: "pct", title: "Actual size", text: "100%", on: { click: () => setZoom(1) } });
+  const pct = h("button", { type: "button", class: "sd-btn sd-small sd-ghost pct", title: "Actual size", "aria-label": "Zoom: 100%, show at actual size", text: "100%", on: { click: () => setZoom(1) } });
   const chips = h("div", { class: "fc-chips" });
-  const dimBtn = h("button", { type: "button", class: "btn small ghost", "aria-pressed": "true", text: "Dim others: on", on: { click: () => { st.dim = !st.dim; dimBtn.textContent = "Dim others: " + (st.dim ? "on" : "off"); dimBtn.setAttribute("aria-pressed", String(st.dim)); apply(); } } });
-  const zoom = h("div", { class: "fc-zoom" },
-    h("button", { type: "button", "aria-label": "Zoom out", title: "Zoom out", text: "−", on: { click: () => setZoom(st.zoom / 1.25) } }),
+  const dimBtn = h("button", { type: "button", class: "sd-btn sd-small sd-ghost", "aria-pressed": "true", text: "Dim others: on", on: { click: () => { st.dim = !st.dim; dimBtn.textContent = "Dim others: " + (st.dim ? "on" : "off"); dimBtn.setAttribute("aria-pressed", String(st.dim)); apply(); } } });
+  const zoom = h("div", { class: "fc-zoom", role: "group", "aria-label": "Zoom" },
+    btn("", () => setZoom(st.zoom / 1.25), { small: true, kind: "ghost", ico: "minus", label: "Zoom out", title: "Zoom out" }),
     pct,
-    h("button", { type: "button", "aria-label": "Zoom in", title: "Zoom in", text: "+", on: { click: () => setZoom(st.zoom * 1.25) } }),
-    h("button", { type: "button", title: "Fit to the window", text: "fit", on: { click: () => fit() } }));
-  const hint = h("span", { class: "fc-hint", text: "hover to trace · click to pin · shift+click to highlight a tree · drag to pan · ctrl+scroll to zoom" });
+    btn("", () => setZoom(st.zoom * 1.25), { small: true, kind: "ghost", ico: "plus", label: "Zoom in", title: "Zoom in" }),
+    btn("Fit", () => fit(), { small: true, kind: "ghost", ico: "fit", title: "Fit to the window" }));
+  const kbd = (t) => h("kbd", { class: "sd-kbd", text: t });
+  const hint = h("span", { class: "fc-hint" }, "Hover to trace · click to pin · ", kbd("Shift"), "+click to highlight a tree · drag to pan · ", kbd("Ctrl"), "+scroll to zoom · arrow keys move between cards");
   const swatch = (cls, label) => h("span", { class: "k" }, h("span", { class: "sw " + cls }), label);
   const legend = h("div", { class: "fc-legend", "aria-label": "Legend" },
     swatch("f", "hovered / pinned"), swatch("n", "feeds it"), swatch("u", "it feeds"), ...(opts.legend || []));
@@ -109,6 +110,7 @@ export function flowchart(graph, opts = {}) {
     sizer.style.setProperty("width", Math.ceil(lay.width * z) + "px");
     sizer.style.setProperty("height", Math.ceil(lay.height * z) + "px");
     pct.textContent = Math.round(z * 100) + "%";
+    pct.setAttribute("aria-label", `Zoom: ${Math.round(z * 100)}%, show at actual size`);
     center();
     view.scrollLeft = wx * z - vx;
     view.scrollTop = wy * z - vy;
@@ -231,11 +233,11 @@ export function flowchart(graph, opts = {}) {
     if (!st.trees.length) return;
     for (const t of st.trees) {
       const chip = h("span", { class: "fc-chip" }, h("i"), byId.get(t.id).title + " · " + DIRS[t.dir],
-        h("button", { type: "button", class: "x", "aria-label": "Remove highlight", text: "×", on: { click: () => { toggleTree(t.id); } } }));
+        h("button", { type: "button", class: "x", "aria-label": "Remove highlight of " + byId.get(t.id).title, on: { click: () => { toggleTree(t.id); } } }, icon("x")));
       chip.style.setProperty("--hc", `var(--h${t.color})`);
       chips.append(chip);
     }
-    chips.append(dimBtn, h("button", { type: "button", class: "btn small ghost", text: "Clear", on: { click: () => { st.trees = []; apply(); } } }));
+    chips.append(dimBtn, btn("Clear", () => { st.trees = []; apply(); }, { small: true, kind: "ghost" }));
   }
   function toggleTree(nid, dir = "both") {
     const i = st.trees.findIndex((t) => t.id === nid);
@@ -257,11 +259,11 @@ export function flowchart(graph, opts = {}) {
     if (st.pinned) {
       const n = byId.get(st.pinned);
       details.classList.toggle("wide", !!opts.wide?.(n));
-      const close = h("button", { type: "button", class: "xbtn sm", "aria-label": "Close", text: "×", on: { click: () => pin(st.pinned) } });
-      const trees = h("div", { class: "row" }, Object.entries(DIRS).map(([d, label]) => h("button", { type: "button", class: "btn small ghost", text: "Highlight " + label, on: { click: () => toggleTree(n.id, d) } })));
+      const close = closeBtn("Close details", () => { const back = cardEls.get(st.pinned); pin(st.pinned); back?.focus({ preventScroll: true }); });
+      const trees = h("div", { class: "row", role: "group", "aria-label": "Highlight a tree" }, Object.entries(DIRS).map(([d, label]) => btn("Highlight " + label, () => toggleTree(n.id, d), { small: true })));
       if (opts.stage) {
         details.append(h("header", null, h("div", null, h("b", { text: n.title }), n.tag ? h("i", { text: n.tag }) : null, n.sub ? h("span", { text: n.sub }) : null), close),
-          h("div", { class: "dbody" }, trees, opts.details?.(n) ?? null));
+          h("div", { class: "dbody" }, opts.details?.(n) ?? null, trees));
       } else {
         details.append(h("header", null, h("b", { text: n.title }), n.sub ? h("span", { text: n.sub }) : null, h("span", { class: "spacer" }), trees, close), opts.details?.(n) ?? null);
       }
@@ -274,9 +276,38 @@ export function flowchart(graph, opts = {}) {
     if (!p) return;
     if (st.pinned !== nid) pin(nid);
     if (st.zoom < 0.7) setZoom(0.8);
-    view.scrollTo({ left: (p.x + p.w / 2) * st.zoom - view.clientWidth / 2, top: (p.y + p.h / 2) * st.zoom - view.clientHeight / 2, behavior: "smooth" });
+    view.scrollTo({ left: (p.x + p.w / 2) * st.zoom - view.clientWidth / 2, top: (p.y + p.h / 2) * st.zoom - view.clientHeight / 2, behavior: still() ? "auto" : "smooth" });
   }
+  // Keyboard: the chart is one tab stop; the arrow keys move to the nearest card in that
+  // direction, Enter pins it, Escape unpins.
+  let cur = graph.nodes[0]?.id;
+  const rove = (nid) => { for (const [k, el] of cardEls) el.tabIndex = k === nid ? 0 : -1; cur = nid; };
+  cards.addEventListener("keydown", (e) => {
+    const d = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[e.key];
+    if (e.key === "Escape" && st.pinned) { e.stopPropagation(); pin(st.pinned); return; }
+    if (!d || !cur) return;
+    e.preventDefault();
+    const a = lay.nodes.get(cur), ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+    let best = null, bestScore = Infinity;
+    for (const [k, p] of lay.nodes) {
+      if (k === cur) continue;
+      const dx = p.x + p.w / 2 - ax, dy = p.y + p.h / 2 - ay;
+      const along = dx * d[0] + dy * d[1];
+      if (along <= 1) continue;
+      const score = along + 3 * Math.abs(dx * d[1] + dy * d[0]);
+      if (score < bestScore) { bestScore = score; best = k; }
+    }
+    if (!best) return;
+    rove(best);
+    const el = cardEls.get(best);
+    el.focus({ preventScroll: true });
+    const p = lay.nodes.get(best);
+    const L = p.x * st.zoom, T = p.y * st.zoom, R = (p.x + p.w) * st.zoom, B = (p.y + p.h) * st.zoom;
+    if (L < view.scrollLeft || R > view.scrollLeft + view.clientWidth || T < view.scrollTop || B > view.scrollTop + view.clientHeight)
+      view.scrollTo({ left: (L + R) / 2 - view.clientWidth / 2, top: (T + B) / 2 - view.clientHeight / 2 });
+  });
   for (const [nid, el] of cardEls) {
+    el.addEventListener("focus", () => { if (cur !== nid) rove(nid); });
     el.addEventListener("pointerenter", () => { st.hovered = nid; apply(); });
     el.addEventListener("pointerleave", () => { if (st.hovered === nid) { st.hovered = null; apply(); } });
     el.addEventListener("focus", () => { st.hovered = nid; apply(); });
@@ -292,6 +323,7 @@ export function flowchart(graph, opts = {}) {
     if (!fitted) { fitted = true; fit(0.55); } else center();
   });
   ro.observe(view);
+  rove(cur);
   setZoom(1);
   apply();
   root.chart = { layout: lay, fit, pin, focus, toggleTree, setZoom, state: st };

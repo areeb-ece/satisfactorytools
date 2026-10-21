@@ -1,5 +1,5 @@
 // Power plant planner.
-import { h, clear, load, save, num, seg, select, stat, table, card, toolHead } from "../ui.js";
+import { h, clear, load, save, num, seg, select, stat, table, card, toolHead, fold } from "../ui.js";
 import { items, itemName, fmt, pct, mw, unit } from "../lib/game.js";
 import { GENERATORS, forTarget, fromSupply, geothermal } from "../lib/power.js";
 
@@ -48,7 +48,7 @@ export default {
           { head: "Extractors", n: true, title: "Water Extractors at 100%", cell: (o) => (o.water ? String(o.extractors) : "") },
           { head: "Waste", n: true, cell: (o) => (o.waste ? fmt(o.waste.rate, 2) + " " + itemName(o.waste.item) + "/min" : "") },
         ], rows),
-        h("p", { class: "tiny", text: "Counts are rounded up and the load spread evenly, so the clock shown is what each generator runs at to make exactly the target." })));
+        h("p", { class: "sd-hint tiny", text: "Counts are rounded up and the load spread evenly, so the clock shown is what each generator runs at to make exactly the target." })));
       } else {
         const [gen, fuel] = st.use.split("|");
         const r = fromSupply(gen, fuel, st.supply, c);
@@ -67,12 +67,12 @@ export default {
     view.append(toolHead(this), h("div", { class: "tgrid" },
       h("div", { class: "stack" },
         card("Plan",
-          seg([{ value: "target", label: "I need power" }, { value: "supply", label: "I have fuel" }], st.mode, (v) => { st.mode = v; drawInputs(); run(); }, { wide: true }),
+          seg([{ value: "target", label: "I need power" }, { value: "supply", label: "I have fuel" }], st.mode, (v) => { st.mode = v; drawInputs(); run(); }, { wide: true, label: "Plan from" }),
           inputs),
-        card("Geothermal",
-          h("p", { class: "tiny", text: "No fuel: output depends on the geyser (impure 100, normal 200, pure 400 MW on average)." }),
+        h("section", { class: "card tune" }, fold("Geothermal", st.geo.impure + st.geo.normal + st.geo.pure > 0, "no fuel",
+          h("p", { class: "sd-hint tiny", text: "No fuel: output depends on the geyser (impure 100, normal 200, pure 400 MW on average)." }),
           h("div", { class: "three" }, ["impure", "normal", "pure"].map((p) => num(p[0].toUpperCase() + p.slice(1), st.geo[p], (v) => { st.geo[p] = Math.max(0, Math.round(v || 0)); runGeo(); }, { min: 0, step: 1 }))),
-          geoOut)),
+          geoOut))),
       out));
     drawInputs();
     run();

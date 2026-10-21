@@ -1,6 +1,6 @@
 // The shell: tool list, hash routes (#/planner, #/items/IronPlate) and the offline
 // light/dark fallback. Each tool is a module with { id, title, group, blurb, mount }.
-import { h, clear } from "./ui.js";
+import { h, clear, icon } from "./ui.js";
 import planner from "./tools/planner.js";
 import itemsTool from "./tools/items.js";
 import compare from "./tools/compare.js";
@@ -21,26 +21,30 @@ const view = document.getElementById("view");
 const scroller = document.getElementById("scroll");
 
 function drawNav() {
-  nav.append(h("a", { href: "#/", "data-id": "" }, "All tools"));
-  for (const g of GROUPS) {
-    nav.append(h("h3", { text: g }));
-    for (const t of TOOLS.filter((x) => x.group === g)) nav.append(h("a", { href: "#/" + t.id, "data-id": t.id }, t.short ?? t.title, h("span", { text: t.tagline })));
-  }
-  nav.append(h("div", { class: "foot" },
-    h("span", null, "Game data from the 1.0 Docs.json via ", h("a", { href: "https://github.com/greeny/SatisfactoryTools", rel: "noopener noreferrer", text: "greeny/SatisfactoryTools" }), " (MIT)."),
-    h("span", null, "Not affiliated with Coffee Stain Studios."),
-    h("a", { href: "https://github.com/areeb-ece/satisfactorytools", rel: "noopener noreferrer", text: "Source on GitHub" })));
+  const link = (t) => h("li", null, h("a", { href: "#/" + t.id, "data-id": t.id }, h("span", { class: "nt", text: t.short ?? t.title }), h("span", { class: "ns", text: t.tagline })));
+  nav.append(
+    h("ul", { class: "sd-nav" }, h("li", null, h("a", { href: "#/", "data-id": "" }, h("span", { class: "nt", text: "All tools" })))),
+    ...GROUPS.map((g) => h("section", { class: "ngroup", "aria-label": g },
+      h("h3", { text: g }),
+      h("ul", { class: "sd-nav" }, TOOLS.filter((x) => x.group === g).map(link)))),
+    h("div", { class: "foot" },
+      h("span", null, "Game data from the 1.0 Docs.json via ", h("a", { href: "https://github.com/greeny/SatisfactoryTools", rel: "noopener noreferrer", text: "greeny/SatisfactoryTools" }), " (MIT)."),
+      h("span", null, "Not affiliated with Coffee Stain Studios."),
+      h("a", { href: "https://github.com/areeb-ece/satisfactorytools", rel: "noopener noreferrer", text: "Source on GitHub" })));
 }
 
 function home() {
+  const plate = (t, lead) => h("a", { class: "sd-card tcard" + (lead ? " lead" : ""), href: "#/" + t.id },
+    h("span", { class: "sd-card-title", text: t.title }),
+    h("span", { class: "sd-card-meta", text: t.blurb }),
+    lead ? h("span", { class: "go" }, "Open the planner", icon("chevron")) : null);
   return [
-    h("div", { class: "hero" },
-      h("h1", null, "SATISFACTORY", h("span", { text: "/" }), "TOOLS"),
+    h("header", { class: "hero" },
+      h("h1", { text: "Satisfactory Tools", tabindex: "-1" }),
       h("p", { text: "Calculators and planners for Satisfactory, in one place. Plan a whole factory for several products at once, then size every machine, miner, generator, belt split and train for it. Everything runs in this tab and your plans stay in this browser." })),
-    ...GROUPS.map((g) => h("section", { class: "stack" },
-      h("h2", { class: "lbl", text: g }),
-      h("div", { class: "cards" }, TOOLS.filter((t) => t.group === g).map((t) =>
-        h("a", { class: "tcard cc" + t.color, href: "#/" + t.id }, h("i", { text: t.tagline }), h("b", { text: t.title }), h("span", { text: t.blurb })))))),
+    ...GROUPS.map((g) => h("section", { class: "group", "aria-labelledby": "g-" + g },
+      h("h2", { id: "g-" + g, text: g }),
+      h("div", { class: "cards" }, TOOLS.filter((t) => t.group === g).map((t) => plate(t, t.id === "planner"))))),
   ];
 }
 
@@ -64,7 +68,9 @@ function route() {
   const ws = !!tool?.workspace;
   app.classList.toggle("ws-mode", ws);
   view.classList.toggle("ws", ws);
-  setNav(false);
+  view.classList.toggle("home", !tool);
+  view.classList.remove("is-stale");
+  setNav(false, false);
   if (!tool) {
     document.title = "Satisfactory Tools";
     view.append(...home());
@@ -72,7 +78,7 @@ function route() {
     document.title = tool.title + " · Satisfactory Tools";
     tool.mount(view, args, new URLSearchParams(query));
   }
-  if (!sameTool) scroller.scrollTop = 0;
+  if (!sameTool) { scroller.scrollTop = 0; scrollTo(0, 0); } // the window scrolls instead on a phone
 }
 
 // Offline (no /design/): a plain light/dark switch, as in OTU Calendar.
@@ -90,15 +96,25 @@ function fallbackTheme() {
   });
 }
 
-function setNav(open) {
+// The tool list as a drawer (workspace tools, and every tool on a phone). Focus moves
+// into it when it opens and back to the button when it closes.
+const drawer = () => app.classList.contains("ws-mode") || matchMedia("(max-width: 1023px)").matches;
+function setNav(open, moveFocus = true) {
+  const was = app.classList.contains("nav-open");
   app.classList.toggle("nav-open", open);
   navBtn.setAttribute("aria-expanded", String(open));
+  document.getElementById("stage").inert = open && drawer(); // the page behind the drawer is out of reach
+  if (!moveFocus || was === open || !drawer()) return;
+  if (open) (nav.querySelector('[aria-current="page"]') || nav.querySelector("a")).focus();
+  else if (nav.contains(document.activeElement)) navBtn.focus();
 }
 navBtn.addEventListener("click", () => setNav(!app.classList.contains("nav-open")));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") setNav(false); });
 document.addEventListener("pointerdown", (e) => {
   if (app.classList.contains("nav-open") && !nav.contains(e.target) && !navBtn.contains(e.target)) setNav(false);
 });
+// The skip link goes to the tool's title without touching the hash (the hash is the route).
+document.getElementById("skip").addEventListener("click", () => (view.querySelector("h1") || view).focus());
 
 drawNav();
 fallbackTheme();

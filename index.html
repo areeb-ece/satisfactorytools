@@ -11,42 +11,43 @@
 <meta name="description" content="Calculators and planners for Satisfactory: a production planner for whole factories, recipe browser, alternate recipe comparer, overclocking, miners, power, belt splitting, trains and drones, the AWESOME Sink and milestones. Runs entirely in your browser.">
 <meta name="author" content="areeb">
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<link rel="preload" href="assets/fonts/mononoki-Regular.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="assets/fonts/mononoki-Bold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/style.css">
 <!-- Shared with areeb-ece.github.io, PrereqFlow and OTU Calendar (areeb-ece.github.io/design/):
-     the master palette and its themes, the settings panel and the night sky, and the
-     visitor's saved settings (one localStorage entry for every site). The colours in
-     css/style.css and js/theme.js's light/dark switch are a fallback for offline use. -->
+     the master palette, its scales and components, the settings panel and the night sky,
+     and the visitor's saved settings (one localStorage entry for every site). fonts.css is
+     the portfolio's text face, Libre Franklin; mononoki (figures) is this site's own. When /design/
+     doesn't load, or serves a version without the shared scales and components,
+     js/theme.js links the copy in assets/design/ instead. -->
 <link rel="stylesheet" href="/design/tokens.css">
 <link rel="stylesheet" href="/design/ui.css">
+<link rel="stylesheet" href="/design/fonts.css">
 <script src="/design/theme.js"></script>
 <script src="js/theme.js"></script>
 </head>
 <body>
+<button class="skip sd-btn sd-primary" id="skip" type="button">Skip to the tool</button>
 <div class="app" id="app">
-  <header class="bar">
+  <header class="bar sd-bar">
+    <button class="sd-btn sd-ghost navbtn btn" id="btnNav" type="button" aria-controls="nav" aria-expanded="false" title="All the tools"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Tools</button>
     <div class="brand">
-      <div class="wordmark"><b><a href="#/">SATISFACTORY<span>/</span>TOOLS</a></b><a href="https://areeb-ece.github.io/" rel="noopener noreferrer">by areeb</a></div>
-      <div class="sheetinfo" id="sheetInfo">GAME DATA 1.0 · RECIPES UNCHANGED THROUGH 1.2</div>
+      <a class="sd-wordmark" href="#/">SATISFACTORY<span>/</span>TOOLS</a>
+      <a class="by" href="https://areeb-ece.github.io/" rel="noopener noreferrer">by areeb</a>
     </div>
-    <div class="tools">
-      <button class="btn navbtn" id="btnNav" type="button" aria-controls="nav" aria-expanded="false" title="All the tools">☰ Tools</button>
-      <span class="lock" title="This page cannot make network requests. Your plans stay in this browser."><i></i>offline · nothing uploaded</span>
-      <span class="sep"></span>
-      <span class="design-slot" data-design-settings></span>
-      <button class="btn theme" id="btnTheme" type="button" title="Switch between the dark and light sheet" hidden>Light</button>
-    </div>
+    <span class="sd-grow"></span>
+    <span class="sheetinfo" id="sheetInfo">Game data 1.0 · recipes unchanged through 1.2</span>
+    <span class="lock" title="This page cannot make network requests. Your plans stay in this browser."><i></i>Offline · nothing uploaded</span>
+    <span class="design-slot" data-design-settings></span>
+    <button class="sd-btn sd-small theme" id="btnTheme" type="button" title="Switch between the dark and light sheet" hidden>Light</button>
   </header>
 
   <div class="main">
     <nav class="nav" id="nav" aria-label="Tools"></nav>
     <main class="stage" id="stage" data-sky>
-      <div class="scroll" id="scroll"><div class="view" id="view"></div></div>
+      <div class="scroll" id="scroll"><div class="view" id="view" tabindex="-1"></div></div>
     </main>
   </div>
 </div>
-<noscript><p class="note warn">These tools are calculators that run in your browser, so they need JavaScript.</p></noscript>
+<noscript><p class="sd-callout sd-warn noscript">These tools are calculators that run in your browser, so they need JavaScript.</p></noscript>
 <script src="/design/ui.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>

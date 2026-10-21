@@ -32,7 +32,7 @@ export function splitParts(outs, item, o = {}) {
   let r;
   try {
     r = balance(known ? inputs.map((i) => i.rate) : [1], outs.map((x) => x.rate), { rel: o.tol, capacity: known ? top : null });
-  } catch (e) { return { error: h("p", { class: "note bad", text: "That's too fine to build: " + e.message + "." }) }; }
+  } catch (e) { return { error: h("p", { class: "sd-callout sd-danger note bad", role: "alert", text: "That's too fine to build: " + e.message + "." }) }; }
   const U = r.U;
   const total = known ? inputs.reduce((t, i) => t + i.rate, 0) : null;
   const perMin = (num, den) => (total * num) / (den * U);
@@ -59,15 +59,15 @@ export function splitParts(outs, item, o = {}) {
     h("b", { text: outs.length <= 10 ? "Ratio " + r.B.map((b) => b / gcdAll(r.B)).join(" : ") : `${outs.length} outputs` }),
     ` · ${r.splitters} splitter${r.splitters === 1 ? "" : "s"}, ${r.mergers} merger${r.mergers === 1 ? "" : "s"}`,
     r.loops ? ` · ${r.loops} loop${r.loops === 1 ? "" : "s"} back ` : " · no loops ",
-    h("span", { class: "tag ok", text: "exact" }))];
-  if (many) summary.push(h("p", { class: "tiny", text: r.strategy === "merge"
+    h("span", { class: "sd-tag sd-ok tag ok", text: "exact" }))];
+  if (many) summary.push(h("p", { class: "sd-hint tiny", text: r.strategy === "merge"
     ? `The ${inputs.length} inputs merge into one belt first, then it's split.`
     : "Each input is split on its own and the pieces merge at the outputs, so no belt carries the whole total." }));
   if (total && Math.abs(shareSum - total) > 1e-9 * Math.max(1, total)) {
-    summary.push(h("p", { class: "tiny", text: `The outputs add up to ${fmt(shareSum, 3)}, not the ${fmt(total, 3)}/min coming in, so they're used as a ratio of it.` }));
+    summary.push(h("p", { class: "sd-hint tiny", text: `The outputs add up to ${fmt(shareSum, 3)}, not the ${fmt(total, 3)}/min coming in, so they're used as a ratio of it.` }));
   }
-  summary.push(h("p", { class: "tiny", text: `Busiest belt: ${total ? fmt((total * busiest) / U, 3) + "/min" : fmt((100 * busiest) / U, 2) + "% of the input"}${c ? ` (${c.count > 1 ? c.count + " × " : ""}${c.name})` : ""}.${r.loops ? " A loop joins its input again, so that belt carries more than comes in." : ""} Splitters are built with their outputs in the order shown; a ÷2 splitter leaves its middle output empty.` }));
-  const tooBig = nodes.length > 600 ? h("p", { class: "note warn", text: `This build has ${nodes.length} splitters and mergers, too many to draw. The counts and the shares are exact.` }) : null;
+  summary.push(h("p", { class: "sd-hint tiny", text: `Busiest belt: ${total ? fmt((total * busiest) / U, 3) + "/min" : fmt((100 * busiest) / U, 2) + "% of the input"}${c ? ` (${c.count > 1 ? c.count + " × " : ""}${c.name})` : ""}.${r.loops ? " A loop joins its input again, so that belt carries more than comes in." : ""} Splitters are built with their outputs in the order shown; a ÷2 splitter leaves its middle output empty.` }));
+  const tooBig = nodes.length > 600 ? h("p", { class: "sd-callout sd-warn note warn", text: `This build has ${nodes.length} splitters and mergers, too many to draw. The counts and the shares are exact.` }) : null;
   const shares = outs.length > 1 ? table([
     { head: "Output", cell: (x) => x.label },
     { head: "Exact share", n: true, cell: (x) => frac(x.b, U) },

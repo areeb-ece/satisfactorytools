@@ -1,0 +1,653 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   THE MASTER PALETTE for areeb-ece.github.io, PrereqFlow, OTU Calendar and Satisfactory Tools.
+
+   All four sites load this one file from https://areeb-ece.github.io/design/tokens.css
+   (the sibling sites live on the same address, so their security policy allows it).
+   Change a colour here, push to main, and every site picks it up when the portfolio
+   deploys. The other sites keep a copy of the night and paper values in
+   their own css/style.css as a fallback for when they're opened offline or from disk.
+
+   THEMES. Every block below is one theme, and the settings panel (the gear icon on every
+   site, /design/ui.js) lists them in this order, under their --theme-label.
+   Night is the default. To add a theme, copy a block, give it a new name in both
+   selectors (lowercase-with-hyphens) and a --theme-label, and change the colours;
+   `npm test` checks that it defines every colour and keeps its text readable. A
+   visitor's choice is remembered in their browser and shared by all the sites.
+
+   Text tiers: --ink (headings) → --ink-2 (body) → --ink-3 (labels, the dimmest text;
+   keep it at 4.5:1 or more against --card) → --ink-4 (marks only, never text). The
+   portfolio's browser check also verifies --ink-3 against its night sky.
+
+   Optional per theme: --star, --star-warm and --star-cool colour the background stars
+   (they default to --ink, --c2 and --c0). color-scheme says whether a theme is dark or
+   light; the sites use it for details such as how strongly course colours tint cards.
+
+   The [data-theme] selectors also let a script read any theme's colours from a probe
+   element (PrereqFlow's image export does that, and the settings panel uses them for
+   its previews); --master marks that this file loaded.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root, [data-theme="dark"] {
+  --master: 1;
+  --theme-label: "Night";
+  --bg: #0F1114;
+  --sheet: #14161A;
+  --sheet-2: #17191E;
+  --card: #1C1F25;
+  --card-hover: #23272E;
+  --ink: #F1EDE5;
+  --ink-2: #CAC5BB;
+  --ink-3: #A29E96;
+  --ink-4: #6E6B65;
+  --rule: #2E323B;
+  --rule-2: #23262D;
+  --grid: rgba(241, 237, 229, 0.03);
+  --accent: #A3B8F0;
+  --accent-ink: #0F1114;
+  --focus-bg: #F3E8C9;
+  --focus-ink: #24201A;
+  --danger: #EE9585;
+  --warn: #EACB76;
+  --ok: #9FD4AB;
+  --scrim: rgba(6, 7, 9, 0.66);
+  --glow-a: rgba(146, 177, 238, 0.07);
+  --glow-b: rgba(240, 182, 142, 0.05);
+  --sheen: rgba(241, 237, 229, 0.07);
+  --hatch: rgba(241, 237, 229, 0.045);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 18px -12px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 18px 50px -18px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* pastel hues: --c* (OTU Calendar course colours), --h* (PrereqFlow tree highlights) */
+  --c0: #92B1EE; --c1: #9FD4AB; --c2: #F0B68E; --c3: #C4A9F2; --c4: #EACB76; --c5: #7DCBC4; --c6: #EBA3C6; --c7: #F0A391;
+  --h0: #9FD4AB; --h1: #C4A9F2; --h2: #F0A391; --h3: #EACB76; --h4: #7DCBC4; --h5: #EBA3C6;
+  --r-sm: 7px; --r: 10px; --r-lg: 16px;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"], [data-theme="light"] {
+  --master: 1;
+  --theme-label: "Paper";
+  --bg: #F3F0E9;
+  --sheet: #FAF8F3;
+  --sheet-2: #F6F3EC;
+  --card: #FFFFFF;
+  --card-hover: #FFFDF8;
+  --ink: #2F2D36;
+  --ink-2: #5D5967;
+  --ink-3: #6E6A76;
+  --ink-4: #B5B0B9;
+  --rule: #DDD7CB;
+  --rule-2: #E8E3D9;
+  --grid: rgba(47, 45, 54, 0.035);
+  --accent: #4F67C6;
+  --accent-ink: #FFFFFF;
+  --focus-bg: #FFE9A6;
+  --focus-ink: #2F2D36;
+  --danger: #C2564A;
+  --warn: #A9831B;
+  --ok: #3F8D5B;
+  --scrim: rgba(47, 45, 54, 0.32);
+  --glow-a: rgba(79, 103, 198, 0.06);
+  --glow-b: rgba(197, 113, 60, 0.05);
+  --sheen: rgba(79, 103, 198, 0.08);
+  --hatch: rgba(47, 45, 54, 0.05);
+  --shadow-card: 0 1px 2px rgba(47, 45, 54, 0.06), 0 8px 18px -12px rgba(47, 45, 54, 0.28);
+  --shadow-pop: 0 20px 50px -20px rgba(47, 45, 54, 0.35), 0 2px 6px rgba(47, 45, 54, 0.08);
+  --c0: #4E6BC8; --c1: #3F8D5B; --c2: #C5713C; --c3: #7A58C4; --c4: #A9831B; --c5: #2B8A84; --c6: #B6508A; --c7: #C65A45;
+  --h0: #3F8D5B; --h1: #7A58C4; --h2: #C65A45; --h3: #A9831B; --h4: #2B8A84; --h5: #B6508A;
+  color-scheme: light;
+}
+
+/* Pure black and pure white, nothing in between but the lines. */
+:root[data-theme="void"], [data-theme="void"] {
+  --master: 1;
+  --theme-label: "Void";
+  --bg: #000000;
+  --sheet: #000000;
+  --sheet-2: #000000;
+  --card: #000000;
+  --card-hover: #121212;
+  --ink: #FFFFFF;
+  --ink-2: #FFFFFF;
+  --ink-3: #C8C8C8;
+  --ink-4: #6A6A6A;
+  --rule: #4A4A4A;
+  --rule-2: #2E2E2E;
+  --grid: rgba(255, 255, 255, 0.05);
+  --accent: #9CC2FF;
+  --accent-ink: #000000;
+  --focus-bg: #FFFFFF;
+  --focus-ink: #000000;
+  --danger: #FF7A70;
+  --warn: #FFD84D;
+  --ok: #6CF294;
+  --scrim: rgba(0, 0, 0, 0.82);
+  --glow-a: rgba(255, 255, 255, 0.025);
+  --glow-b: rgba(255, 255, 255, 0.015);
+  --sheen: rgba(255, 255, 255, 0.08);
+  --hatch: rgba(255, 255, 255, 0.07);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 18px 50px -18px rgba(0, 0, 0, 1);
+  --c0: #7FA8FF; --c1: #6CF294; --c2: #FFA36B; --c3: #C99BFF; --c4: #FFD84D; --c5: #4FE6D8; --c6: #FF85CB; --c7: #FF7A70;
+  --h0: #6CF294; --h1: #C99BFF; --h2: #FF7A70; --h3: #FFD84D; --h4: #4FE6D8; --h5: #FF85CB;
+  --star: #FFFFFF; --star-warm: #FFFFFF; --star-cool: #FFFFFF;
+  color-scheme: dark;
+}
+
+/* An old green-phosphor terminal. */
+:root[data-theme="console"], [data-theme="console"] {
+  --master: 1;
+  --theme-label: "Console";
+  --bg: #000000;
+  --sheet: #000000;
+  --sheet-2: #010401;
+  --card: #020A02;
+  --card-hover: #051A05;
+  --ink: #33FF33;
+  --ink-2: #2EE62E;
+  --ink-3: #25BD25;
+  --ink-4: #126312;
+  --rule: #0F4D0F;
+  --rule-2: #0A330A;
+  --grid: rgba(51, 255, 51, 0.06);
+  --accent: #B8FFB8;
+  --accent-ink: #000000;
+  --focus-bg: #33FF33;
+  --focus-ink: #000000;
+  --danger: #FF5555;
+  --warn: #FFFF55;
+  --ok: #33FF33;
+  --scrim: rgba(0, 0, 0, 0.8);
+  --glow-a: rgba(51, 255, 51, 0.05);
+  --glow-b: rgba(51, 255, 51, 0.03);
+  --sheen: rgba(51, 255, 51, 0.09);
+  --hatch: rgba(51, 255, 51, 0.07);
+  --shadow-card: 0 0 0 1px rgba(51, 255, 51, 0.05) inset, 0 0 14px -6px rgba(51, 255, 51, 0.25);
+  --shadow-pop: 0 0 0 1px rgba(51, 255, 51, 0.25), 0 0 40px -12px rgba(51, 255, 51, 0.35);
+  --c0: #33FF33; --c1: #55FFFF; --c2: #FFFF55; --c3: #22CC88; --c4: #99FF66; --c5: #00BB55; --c6: #CCFF33; --c7: #66FFAA;
+  --h0: #33FF33; --h1: #55FFFF; --h2: #FFFF55; --h3: #99FF66; --h4: #22CC88; --h5: #CCFF33;
+  --star: #33FF33; --star-warm: #99FF66; --star-cool: #55FFFF;
+  color-scheme: dark;
+}
+
+/* An amber monochrome monitor. */
+:root[data-theme="amber"], [data-theme="amber"] {
+  --master: 1;
+  --theme-label: "Amber";
+  --bg: #000000;
+  --sheet: #050300;
+  --sheet-2: #080500;
+  --card: #0E0900;
+  --card-hover: #1C1200;
+  --ink: #FFB000;
+  --ink-2: #EBA200;
+  --ink-3: #C48700;
+  --ink-4: #664600;
+  --rule: #4A3200;
+  --rule-2: #2E2000;
+  --grid: rgba(255, 176, 0, 0.06);
+  --accent: #FFD98A;
+  --accent-ink: #000000;
+  --focus-bg: #FFB000;
+  --focus-ink: #000000;
+  --danger: #FF6A3D;
+  --warn: #FFE066;
+  --ok: #D4E85A;
+  --scrim: rgba(0, 0, 0, 0.8);
+  --glow-a: rgba(255, 176, 0, 0.05);
+  --glow-b: rgba(255, 120, 0, 0.035);
+  --sheen: rgba(255, 176, 0, 0.09);
+  --hatch: rgba(255, 176, 0, 0.07);
+  --shadow-card: 0 0 0 1px rgba(255, 176, 0, 0.05) inset, 0 0 14px -6px rgba(255, 176, 0, 0.22);
+  --shadow-pop: 0 0 0 1px rgba(255, 176, 0, 0.25), 0 0 40px -12px rgba(255, 176, 0, 0.3);
+  --c0: #FFB000; --c1: #D4E85A; --c2: #FF8A2A; --c3: #FFD98A; --c4: #FFE066; --c5: #E6C27A; --c6: #FF9F6B; --c7: #FF6A3D;
+  --h0: #D4E85A; --h1: #FFD98A; --h2: #FF8A2A; --h3: #FFE066; --h4: #E6C27A; --h5: #FF9F6B;
+  --star: #FFB000; --star-warm: #FF8A2A; --star-cool: #FFE066;
+  color-scheme: dark;
+}
+
+/* Cool arctic blues and frost. */
+:root[data-theme="arctic"], [data-theme="arctic"] {
+  --master: 1;
+  --theme-label: "Arctic";
+  --bg: #20242D;
+  --sheet: #262B35;
+  --sheet-2: #2A303B;
+  --card: #313846;
+  --card-hover: #3A4253;
+  --ink: #ECEFF4;
+  --ink-2: #D8DEE9;
+  --ink-3: #B3BCCB;
+  --ink-4: #66728A;
+  --rule: #444D60;
+  --rule-2: #363E4D;
+  --grid: rgba(236, 239, 244, 0.035);
+  --accent: #88C0D0;
+  --accent-ink: #20242D;
+  --focus-bg: #EBCB8B;
+  --focus-ink: #262B35;
+  --danger: #E58A92;
+  --warn: #EBCB8B;
+  --ok: #A3BE8C;
+  --scrim: rgba(16, 19, 24, 0.7);
+  --glow-a: rgba(136, 192, 208, 0.08);
+  --glow-b: rgba(180, 142, 173, 0.06);
+  --sheen: rgba(236, 239, 244, 0.07);
+  --hatch: rgba(236, 239, 244, 0.05);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 18px -12px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 18px 50px -18px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.25);
+  --c0: #81A1C1; --c1: #A3BE8C; --c2: #D08770; --c3: #B48EAD; --c4: #EBCB8B; --c5: #8FBCBB; --c6: #D3A2C4; --c7: #E58A92;
+  --h0: #A3BE8C; --h1: #B48EAD; --h2: #D08770; --h3: #EBCB8B; --h4: #8FBCBB; --h5: #88C0D0;
+  color-scheme: dark;
+}
+
+/* Deep sea blue. */
+:root[data-theme="ocean"], [data-theme="ocean"] {
+  --master: 1;
+  --theme-label: "Ocean";
+  --bg: #08101D;
+  --sheet: #0C1626;
+  --sheet-2: #0F1A2C;
+  --card: #142238;
+  --card-hover: #1A2B46;
+  --ink: #E6EEFA;
+  --ink-2: #BFCDE3;
+  --ink-3: #97A9C5;
+  --ink-4: #536581;
+  --rule: #26364F;
+  --rule-2: #1C2A40;
+  --grid: rgba(230, 238, 250, 0.03);
+  --accent: #6FC3FF;
+  --accent-ink: #08101D;
+  --focus-bg: #F6E7B0;
+  --focus-ink: #1A1A10;
+  --danger: #FF8F8F;
+  --warn: #F2CF73;
+  --ok: #7EDDB0;
+  --scrim: rgba(4, 8, 15, 0.7);
+  --glow-a: rgba(111, 195, 255, 0.08);
+  --glow-b: rgba(94, 214, 224, 0.05);
+  --sheen: rgba(230, 238, 250, 0.07);
+  --hatch: rgba(230, 238, 250, 0.045);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 18px -12px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 18px 50px -18px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --c0: #6FA8FF; --c1: #7EDDB0; --c2: #FFB27A; --c3: #B9A3FF; --c4: #F2CF73; --c5: #5ED6E0; --c6: #F59BD0; --c7: #FF8F8F;
+  --h0: #7EDDB0; --h1: #B9A3FF; --h2: #FF8F8F; --h3: #F2CF73; --h4: #5ED6E0; --h5: #F59BD0;
+  --star-warm: #F2CF73; --star-cool: #6FC3FF;
+  color-scheme: dark;
+}
+
+/* Pine and moss. */
+:root[data-theme="forest"], [data-theme="forest"] {
+  --master: 1;
+  --theme-label: "Forest";
+  --bg: #0D130F;
+  --sheet: #121A15;
+  --sheet-2: #151F19;
+  --card: #1B271F;
+  --card-hover: #223027;
+  --ink: #E8F0E3;
+  --ink-2: #C4D1BC;
+  --ink-3: #9DAE95;
+  --ink-4: #5C6E58;
+  --rule: #2B3A30;
+  --rule-2: #223027;
+  --grid: rgba(232, 240, 227, 0.03);
+  --accent: #9BD18B;
+  --accent-ink: #0D130F;
+  --focus-bg: #EFE3B0;
+  --focus-ink: #1E1A0E;
+  --danger: #E8907A;
+  --warn: #E3C16F;
+  --ok: #9BD18B;
+  --scrim: rgba(5, 8, 6, 0.7);
+  --glow-a: rgba(155, 209, 139, 0.06);
+  --glow-b: rgba(227, 193, 111, 0.045);
+  --sheen: rgba(232, 240, 227, 0.07);
+  --hatch: rgba(232, 240, 227, 0.045);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 18px -12px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 18px 50px -18px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --c0: #8FB8DE; --c1: #9BD18B; --c2: #E3A86F; --c3: #C3A6E0; --c4: #E3C16F; --c5: #7FC8B4; --c6: #E0A3B8; --c7: #E8907A;
+  --h0: #9BD18B; --h1: #C3A6E0; --h2: #E8907A; --h3: #E3C16F; --h4: #7FC8B4; --h5: #E0A3B8;
+  --star-warm: #E3C16F; --star-cool: #9BD18B;
+  color-scheme: dark;
+}
+
+/* Warm retro browns with bright fruit colours. */
+:root[data-theme="retro"], [data-theme="retro"] {
+  --master: 1;
+  --theme-label: "Retro";
+  --bg: #1D2021;
+  --sheet: #242424;
+  --sheet-2: #282828;
+  --card: #32302F;
+  --card-hover: #3C3836;
+  --ink: #FBF1C7;
+  --ink-2: #EBDBB2;
+  --ink-3: #BDAE93;
+  --ink-4: #665C54;
+  --rule: #504945;
+  --rule-2: #3C3836;
+  --grid: rgba(251, 241, 199, 0.03);
+  --accent: #83A598;
+  --accent-ink: #1D2021;
+  --focus-bg: #FABD2F;
+  --focus-ink: #1D2021;
+  --danger: #FB4934;
+  --warn: #FABD2F;
+  --ok: #B8BB26;
+  --scrim: rgba(10, 10, 10, 0.7);
+  --glow-a: rgba(254, 128, 25, 0.06);
+  --glow-b: rgba(131, 165, 152, 0.05);
+  --sheen: rgba(251, 241, 199, 0.07);
+  --hatch: rgba(251, 241, 199, 0.05);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 18px -12px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 18px 50px -18px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --c0: #83A598; --c1: #B8BB26; --c2: #FE8019; --c3: #D3869B; --c4: #FABD2F; --c5: #8EC07C; --c6: #E7A1B3; --c7: #FB4934;
+  --h0: #B8BB26; --h1: #D3869B; --h2: #FE8019; --h3: #FABD2F; --h4: #8EC07C; --h5: #83A598;
+  --star-warm: #FABD2F; --star-cool: #83A598;
+  color-scheme: dark;
+}
+
+/* Low-glare blue-green and cream accents. */
+:root[data-theme="solar-dark"], [data-theme="solar-dark"] {
+  --master: 1;
+  --theme-label: "Solar dark";
+  --bg: #00212B;
+  --sheet: #002832;
+  --sheet-2: #002B36;
+  --card: #06333F;
+  --card-hover: #0B3F4C;
+  --ink: #FDF6E3;
+  --ink-2: #CBD3D1;
+  --ink-3: #9FB0B1;
+  --ink-4: #50686F;
+  --rule: #1B4A55;
+  --rule-2: #0F3D48;
+  --grid: rgba(253, 246, 227, 0.03);
+  --accent: #4FAEE8;
+  --accent-ink: #002B36;
+  --focus-bg: #EEE8D5;
+  --focus-ink: #073642;
+  --danger: #F0605A;
+  --warn: #D9A800;
+  --ok: #A3B800;
+  --scrim: rgba(0, 14, 18, 0.7);
+  --glow-a: rgba(38, 139, 210, 0.08);
+  --glow-b: rgba(181, 137, 0, 0.05);
+  --sheen: rgba(253, 246, 227, 0.07);
+  --hatch: rgba(253, 246, 227, 0.045);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 18px -12px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 18px 50px -18px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --c0: #4FAEE8; --c1: #A3B800; --c2: #E8743E; --c3: #9C9FE8; --c4: #D9A800; --c5: #3CC4B9; --c6: #EC6AA9; --c7: #F0605A;
+  --h0: #A3B800; --h1: #9C9FE8; --h2: #E8743E; --h3: #D9A800; --h4: #3CC4B9; --h5: #EC6AA9;
+  --star-warm: #D9A800; --star-cool: #4FAEE8;
+  color-scheme: dark;
+}
+
+/* Neon pink and cyan on deep violet. */
+:root[data-theme="synthwave"], [data-theme="synthwave"] {
+  --master: 1;
+  --theme-label: "Synthwave";
+  --bg: #12091F;
+  --sheet: #180D2A;
+  --sheet-2: #1C1031;
+  --card: #25163E;
+  --card-hover: #2F1D4D;
+  --ink: #F8EBFF;
+  --ink-2: #DCC7EF;
+  --ink-3: #B49ECC;
+  --ink-4: #6B5585;
+  --rule: #3D2A5C;
+  --rule-2: #2E1F47;
+  --grid: rgba(255, 106, 213, 0.05);
+  --accent: #FF6AD5;
+  --accent-ink: #12091F;
+  --focus-bg: #FFE66D;
+  --focus-ink: #12091F;
+  --danger: #FF5C7A;
+  --warn: #FFE66D;
+  --ok: #72F1B8;
+  --scrim: rgba(8, 3, 15, 0.72);
+  --glow-a: rgba(255, 106, 213, 0.1);
+  --glow-b: rgba(54, 249, 246, 0.06);
+  --sheen: rgba(255, 106, 213, 0.1);
+  --hatch: rgba(248, 235, 255, 0.05);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 18px -12px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 18px 50px -18px rgba(0, 0, 0, 0.85), 0 0 30px -10px rgba(255, 106, 213, 0.35);
+  --c0: #36F9F6; --c1: #72F1B8; --c2: #FF8B39; --c3: #C792EA; --c4: #FFE66D; --c5: #7AD7F0; --c6: #FF6AD5; --c7: #FE4450;
+  --h0: #72F1B8; --h1: #C792EA; --h2: #FF8B39; --h3: #FFE66D; --h4: #36F9F6; --h5: #FF6AD5;
+  --star-warm: #FF6AD5; --star-cool: #36F9F6;
+  color-scheme: dark;
+}
+
+/* Black on white, as plain as paper gets. */
+:root[data-theme="ink"], [data-theme="ink"] {
+  --master: 1;
+  --theme-label: "Ink";
+  --bg: #FFFFFF;
+  --sheet: #FFFFFF;
+  --sheet-2: #FFFFFF;
+  --card: #FFFFFF;
+  --card-hover: #F2F2F2;
+  --ink: #000000;
+  --ink-2: #000000;
+  --ink-3: #4A4A4A;
+  --ink-4: #A0A0A0;
+  --rule: #9A9A9A;
+  --rule-2: #CFCFCF;
+  --grid: rgba(0, 0, 0, 0.05);
+  --accent: #0040C8;
+  --accent-ink: #FFFFFF;
+  --focus-bg: #FFE14D;
+  --focus-ink: #000000;
+  --danger: #B3261E;
+  --warn: #7A5A00;
+  --ok: #1E6B3A;
+  --scrim: rgba(0, 0, 0, 0.4);
+  --glow-a: rgba(0, 0, 0, 0);
+  --glow-b: rgba(0, 0, 0, 0);
+  --sheen: rgba(0, 0, 0, 0.05);
+  --hatch: rgba(0, 0, 0, 0.07);
+  --shadow-card: 0 0 0 1px rgba(0, 0, 0, 0.02);
+  --shadow-pop: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 12px 30px -12px rgba(0, 0, 0, 0.35);
+  --c0: #1F4FD1; --c1: #1E7A42; --c2: #B85410; --c3: #6A3DC2; --c4: #8A6400; --c5: #0B7A73; --c6: #B0306E; --c7: #C0362C;
+  --h0: #1E7A42; --h1: #6A3DC2; --h2: #C0362C; --h3: #8A6400; --h4: #0B7A73; --h5: #B0306E;
+  --star: #000000; --star-warm: #000000; --star-cool: #000000;
+  color-scheme: light;
+}
+
+/* Old paper and brown ink. */
+:root[data-theme="sepia"], [data-theme="sepia"] {
+  --master: 1;
+  --theme-label: "Sepia";
+  --bg: #EADBC8;
+  --sheet: #F5EBDD;
+  --sheet-2: #F0E4D3;
+  --card: #FBF4EA;
+  --card-hover: #FFF9F0;
+  --ink: #3B2A1E;
+  --ink-2: #5C4636;
+  --ink-3: #735C4A;
+  --ink-4: #B39C86;
+  --rule: #D9C6AF;
+  --rule-2: #E4D4C0;
+  --grid: rgba(59, 42, 30, 0.04);
+  --accent: #9A4A1F;
+  --accent-ink: #FFFFFF;
+  --focus-bg: #F2D58A;
+  --focus-ink: #3B2A1E;
+  --danger: #A63D2F;
+  --warn: #8A6410;
+  --ok: #4E7A3A;
+  --scrim: rgba(59, 42, 30, 0.35);
+  --glow-a: rgba(154, 74, 31, 0.06);
+  --glow-b: rgba(62, 106, 158, 0.04);
+  --sheen: rgba(154, 74, 31, 0.07);
+  --hatch: rgba(59, 42, 30, 0.06);
+  --shadow-card: 0 1px 2px rgba(59, 42, 30, 0.07), 0 8px 18px -12px rgba(59, 42, 30, 0.3);
+  --shadow-pop: 0 20px 50px -20px rgba(59, 42, 30, 0.4), 0 2px 6px rgba(59, 42, 30, 0.1);
+  --c0: #3E6A9E; --c1: #4E7A3A; --c2: #B5612A; --c3: #7A4FA0; --c4: #8A6410; --c5: #2E7D74; --c6: #A3477A; --c7: #B04535;
+  --h0: #4E7A3A; --h1: #7A4FA0; --h2: #B04535; --h3: #8A6410; --h4: #2E7D74; --h5: #A3477A;
+  color-scheme: light;
+}
+
+/* Cream paper with blue-green ink. */
+:root[data-theme="solar-light"], [data-theme="solar-light"] {
+  --master: 1;
+  --theme-label: "Solar light";
+  --bg: #EEE8D5;
+  --sheet: #FDF6E3;
+  --sheet-2: #F7F0DC;
+  --card: #FFFBEF;
+  --card-hover: #FFFDF6;
+  --ink: #073642;
+  --ink-2: #36535B;
+  --ink-3: #52686D;
+  --ink-4: #93A1A1;
+  --rule: #DDD6C1;
+  --rule-2: #E8E1CD;
+  --grid: rgba(7, 54, 66, 0.04);
+  --accent: #1F6FA8;
+  --accent-ink: #FFFFFF;
+  --focus-bg: #F5DE8C;
+  --focus-ink: #073642;
+  --danger: #C42B28;
+  --warn: #8C6A00;
+  --ok: #5F6E00;
+  --scrim: rgba(7, 54, 66, 0.3);
+  --glow-a: rgba(38, 139, 210, 0.06);
+  --glow-b: rgba(181, 137, 0, 0.05);
+  --sheen: rgba(38, 139, 210, 0.07);
+  --hatch: rgba(7, 54, 66, 0.05);
+  --shadow-card: 0 1px 2px rgba(7, 54, 66, 0.06), 0 8px 18px -12px rgba(7, 54, 66, 0.25);
+  --shadow-pop: 0 20px 50px -20px rgba(7, 54, 66, 0.35), 0 2px 6px rgba(7, 54, 66, 0.08);
+  --c0: #1F6FA8; --c1: #5F6E00; --c2: #B8481A; --c3: #5B5FB8; --c4: #8C6A00; --c5: #1E8079; --c6: #B52F73; --c7: #C42B28;
+  --h0: #5F6E00; --h1: #5B5FB8; --h2: #B8481A; --h3: #8C6A00; --h4: #1E8079; --h5: #B52F73;
+  color-scheme: light;
+}
+
+/* Blush pink paper with berry ink. */
+:root[data-theme="rose"], [data-theme="rose"] {
+  --master: 1;
+  --theme-label: "Rosé";
+  --bg: #F5E9EA;
+  --sheet: #FCF4F4;
+  --sheet-2: #F8EEEF;
+  --card: #FFFFFF;
+  --card-hover: #FFFAFA;
+  --ink: #3A2530;
+  --ink-2: #614856;
+  --ink-3: #7D6171;
+  --ink-4: #C2A9B5;
+  --rule: #E6D2D7;
+  --rule-2: #EFE0E3;
+  --grid: rgba(58, 37, 48, 0.035);
+  --accent: #A83D70;
+  --accent-ink: #FFFFFF;
+  --focus-bg: #FFE1A8;
+  --focus-ink: #3A2530;
+  --danger: #B83F3F;
+  --warn: #8F6610;
+  --ok: #357A55;
+  --scrim: rgba(58, 37, 48, 0.3);
+  --glow-a: rgba(180, 70, 122, 0.06);
+  --glow-b: rgba(85, 113, 201, 0.04);
+  --sheen: rgba(180, 70, 122, 0.07);
+  --hatch: rgba(58, 37, 48, 0.05);
+  --shadow-card: 0 1px 2px rgba(58, 37, 48, 0.06), 0 8px 18px -12px rgba(58, 37, 48, 0.28);
+  --shadow-pop: 0 20px 50px -20px rgba(58, 37, 48, 0.35), 0 2px 6px rgba(58, 37, 48, 0.08);
+  --c0: #5571C9; --c1: #357A55; --c2: #C0662F; --c3: #8A58C4; --c4: #8F6610; --c5: #2A8280; --c6: #A83D70; --c7: #B83F3F;
+  --h0: #357A55; --h1: #8A58C4; --h2: #B83F3F; --h3: #8F6610; --h4: #2A8280; --h5: #A83D70;
+  color-scheme: light;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SHARED SCALES. The same in every theme: type, spacing, control sizes, motion, layers,
+   and a few colours mixed from each theme's own, so they follow every theme and the
+   visitor's accent without a line per theme. Every site uses these names instead of raw
+   numbers; adding a theme above never means touching this part.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Type. Each site sets its own faces as --f (text) and --f-code (code, figures). */
+  --font-text: var(--f, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  --font-mono: var(--f-code, var(--f, ui-monospace, "SF Mono", Menlo, Consolas, monospace));
+  --fs-1: 13px;                                 /* captions, meta, table heads */
+  --fs-2: 14px;                                 /* controls, navigation */
+  --fs-3: 16px;                                 /* dense body, card titles */
+  --fs-4: clamp(16.5px, 15.5px + .25vw, 18px);  /* reading body */
+  --fs-5: clamp(19px, 15px + 1cqi, 24px);       /* lead, third-level heads */
+  --fs-6: clamp(25px, 17px + 2.2cqi, 38px);     /* section heads */
+  --fs-7: clamp(38px, 22px + 5cqi, 80px);       /* page titles */
+  --fs-8: clamp(48px, 16px + 10cqi, 148px);     /* one name per site, at most */
+  --lh-display: .94;
+  --lh-head: 1.12;
+  --lh-ui: 1.35;
+  --lh-text: 1.6;
+  --tr-display: -.035em;
+  --tr-head: -.018em;
+  --tr-mark: .14em;                             /* wordmarks only */
+  --fw-text: 400;
+  --fw-ui: 500;
+  --fw-strong: 600;
+  --fw-head: 700;
+  --measure-text: 34em;                         /* about 70 characters of running text */
+
+  /* Space, on a 4px base. */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px;
+  --sp-6: 32px; --sp-7: 48px; --sp-8: 64px; --sp-9: 96px; --sp-10: 128px;
+
+  /* Controls: one height per context. Touch screens get bigger targets (below). */
+  --ctl-h-sm: 28px;
+  --ctl-h: 32px;
+  --ctl-h-lg: 40px;
+  --ctl-px: 12px;
+  --r-pill: 999px;
+
+  /* Focus ring, on everything a keyboard can reach. */
+  --ring-w: 2px;
+  --ring-off: 2px;
+
+  /* Motion. Short, and out of the way: UI 120–260ms, ease-out for anything that enters. */
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  --ease-in-out: cubic-bezier(.77, 0, .175, 1);
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);
+  --dur-1: 120ms;                               /* press, hover colour */
+  --dur-2: 180ms;                               /* small things moving */
+  --dur-3: 260ms;                               /* panels, drawers, dialogs */
+
+  /* Layers. */
+  --z-page: 1;
+  --z-sticky: 10;
+  --z-drawer: 30;
+  --z-float: 40;
+  --z-toast: 50;
+}
+/* The settings panel's "Animations" switch and the system setting both stop motion. */
+:root[data-motion="off"] { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+}
+@media (pointer: coarse) {
+  :root { --ctl-h-sm: 36px; --ctl-h: 40px; --ctl-h-lg: 44px; }
+}
+
+/* Colours mixed from each theme's own. Also on [data-theme] elements, so a preview of
+   another theme gets its own mixes. npm test checks their contrast in every theme. */
+:root, [data-theme] {
+  --ring: var(--accent);
+  --field: color-mix(in srgb, var(--bg) 50%, var(--sheet));          /* inside inputs */
+  --well: color-mix(in srgb, var(--ink) 8%, var(--sheet));           /* code, diagrams, figures */
+  --field-line: color-mix(in srgb, var(--ink) 50%, var(--sheet));    /* input borders: 3:1 */
+  --row-line: color-mix(in srgb, var(--ink) 14%, var(--sheet));      /* table rows */
+  --hover: color-mix(in srgb, var(--ink) 7%, transparent);           /* laid over a surface */
+  --tint: color-mix(in srgb, var(--accent) 12%, var(--sheet));       /* selected, notes */
+  --tint-ok: color-mix(in srgb, var(--ok) 12%, var(--sheet));
+  --tint-warn: color-mix(in srgb, var(--warn) 12%, var(--sheet));
+  --tint-danger: color-mix(in srgb, var(--danger) 12%, var(--sheet));
+  --ok-ink: color-mix(in srgb, var(--ok) 55%, var(--ink));           /* status as text: 4.5:1 */
+  --warn-ink: color-mix(in srgb, var(--warn) 55%, var(--ink));
+  --danger-ink: color-mix(in srgb, var(--danger) 55%, var(--ink));
+}
+/* Light inks are darker, so their borders need a bigger share to reach 3:1. */
+:root[data-scheme="light"] { --field-line: color-mix(in srgb, var(--ink) 60%, var(--sheet)); --well: color-mix(in srgb, var(--ink) 5%, var(--sheet)); }
