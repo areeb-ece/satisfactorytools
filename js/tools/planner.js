@@ -1,7 +1,7 @@
 // Production planner: several products in one factory. Shared intermediates are made
 // on one line each, and every line's output is rationed between the lines (and
 // products) that need it, with a splitter plan for each split.
-import { h, clear, load, save, seg, select, itemRows, itemLink, rate, stat, table, card, toolHead, toast } from "../ui.js";
+import { h, clear, load, save, seg, segField, select, itemRows, itemLink, rate, stat, table, toolHead, toast, btn, closeBtn, fold, icon } from "../ui.js";
 import { recipes, recipeById, buildings, items, itemName, fmt, pct, mw, carrier, defaultRecipes, isConversion, D } from "../lib/game.js";
 import { plan, distribution, OBJECTIVES } from "../lib/planner.js";
 import { factoryDiagram } from "../graph.js";
@@ -67,9 +67,9 @@ export default {
     const stage = h("div", { class: "ws-stage" });
     let chart = null; // the diagram's API, for "show in diagram" from the side panel
     let timer;
-    const update = () => { persist(); clearTimeout(timer); timer = setTimeout(run, 120); };
+    let update = () => { persist(); clearTimeout(timer); timer = setTimeout(run, 120); };
 
-    const recCount = h("span", { class: "tiny" });
+    const recCount = h("span", { class: "sd-hint tiny" });
     const dialog = recipeDialog(st, () => { recCount.textContent = summary(); update(); });
     const summary = () => {
       const alts = st.alts.filter((id) => recipeById[id]?.alt).length;
@@ -78,20 +78,25 @@ export default {
     recCount.textContent = summary();
 
     const panel = (title, ...kids) => h("section", { class: "panel" }, h("h2", { text: title }), kids);
+    const optSummary = () => `${OBJECTIVES[st.objective]} · up to ${pct(st.maxClock, 0)} · ${summary()}`;
+    const options = fold("Options", st.objective !== "resources" || st.maxClock !== 1 || st.alts.length > 0 || st.off.length > 0, optSummary(),
+      segField("Optimise for", Object.entries(OBJECTIVES).map(([value, label]) => ({ value, label: label.replace(/^(Fewest|Least) (\w)/, (m, w, c) => c.toUpperCase()) })), st.objective, (v) => { st.objective = v; update(); }, { wide: true }),
+      select("Highest clock speed", [1, 1.5, 2, 2.5].map((c) => ({ value: c, label: pct(c, 0) + (c > 1 ? ` (${(c - 1) / 0.5} shard${c > 1.5 ? "s" : ""} each)` : " (no Power Shards)") })), st.maxClock, (v) => { st.maxClock = Number(v); update(); }),
+      h("div", { class: "sd-field fl" }, h("span", { class: "sd-label", text: "Recipes" }),
+        h("div", { class: "row" }, btn("Choose recipes…", () => dialog.showModal()), recCount)));
+    const inputsFold = fold("Inputs you already have", st.inputs.length > 0, st.inputs.length ? `${st.inputs.length} input${st.inputs.length === 1 ? "" : "s"}` : "none",
+      h("p", { class: "sd-hint tiny", text: "Parts or ores arriving from elsewhere. They're used before anything is made; leave the rate empty for as much as needed. An input of an ore also caps how much of it the plan may use." }),
+      itemRows(st.inputs, () => { inputsFold.querySelector(".fold-s").textContent = st.inputs.length ? `${st.inputs.length} input${st.inputs.length === 1 ? "" : "s"}` : "none"; update(); }, { kind: "all", placeholder: "Add input", allowEmptyRate: true, noun: "Input" }));
+    const refresh = update;
+    update = () => { options.querySelector(".fold-s").textContent = optSummary(); refresh(); };
     view.append(h("div", { class: "ws-side" },
         toolHead(this),
-        panel("Products", h("p", { class: "tiny", text: "What leaves the factory, per minute." }),
-          itemRows(st.targets, update, { placeholder: "Add product", emptyText: "Add at least one product." })),
-        panel("Inputs you already have",
-          h("p", { class: "tiny", text: "Parts or ores arriving from elsewhere. They're used before anything is made; leave the rate empty for as much as needed. An input of an ore also caps how much of it the plan may use." }),
-          itemRows(st.inputs, update, { kind: "all", placeholder: "Add input", allowEmptyRate: true })),
-        panel("Options",
-          h("label", { class: "fl" }, "Optimise for", seg(Object.entries(OBJECTIVES).map(([value, label]) => ({ value, label: label.replace(/^(Fewest|Least) /, "") })), st.objective, (v) => { st.objective = v; update(); }, { wide: true, label: "Optimise for" })),
-          select("Highest clock speed", [1, 1.5, 2, 2.5].map((c) => ({ value: c, label: pct(c, 0) + (c > 1 ? ` (${(c - 1) / 0.5} shard${c > 1.5 ? "s" : ""} each)` : " (no Power Shards)") })), st.maxClock, (v) => { st.maxClock = Number(v); update(); }),
-          h("div", { class: "row" }, h("button", { class: "btn", type: "button", text: "Recipes…", on: { click: () => dialog.showModal() } }), recCount),
-          h("div", { class: "row" },
-            h("button", { class: "btn ghost small", type: "button", text: "Copy link to this plan", on: { click: copyLink } }),
-            h("button", { class: "btn ghost small", type: "button", text: "Start over", on: { click: reset } }))),
+        panel("Products", h("p", { class: "sd-hint tiny", text: "What leaves the factory, per minute." }),
+          itemRows(st.targets, () => update(), { placeholder: "Add product", emptyText: "Add at least one product.", noun: "Product" })),
+        h("section", { class: "panel tune" }, inputsFold, options,
+          h("div", { class: "row acts" },
+            btn("Copy link to this plan", copyLink, { small: true, ico: "link" }),
+            btn("Start over", reset, { small: true, kind: "ghost", ico: "reset", cls: "sd-danger" }))),
         out),
       stage, dialog);
 
@@ -114,13 +119,13 @@ export default {
       chart = null;
       const res = plan({ targets: st.targets.filter((t) => t.item && t.rate > 0), inputs: st.inputs.filter((t) => t.item), recipes: recipeSet(st), objective: st.objective, maxClock: st.maxClock });
       if (res.status === "empty") {
-        stage.append(h("div", { class: "ws-empty", text: "Add a product and a rate to see the factory." }));
+        stage.append(h("div", { class: "ws-empty" }, h("div", { class: "empty" }, h("b", { text: "No factory yet" }), h("p", { text: "Add a product and a rate to see the factory." }))));
         return;
       }
       if (res.status !== "ok") {
-        const fix = res.suggest?.length ? h("div", { class: "row" }, res.suggest.map((r) => h("button", { class: "btn small", type: "button", text: "Turn on " + r.name, on: { click: () => { st.alts.push(r.id); recCount.textContent = summary(); update(); } } }))) : null;
-        out.append(panel("No plan", h("p", { class: "note bad", text: res.message }), fix));
-        stage.append(h("div", { class: "ws-empty" }, h("p", { class: "note bad", text: res.message })));
+        const fix = res.suggest?.length ? h("div", { class: "row" }, res.suggest.map((r) => btn("Turn on " + r.name, () => { st.alts.push(r.id); recCount.textContent = summary(); update(); }, { small: true }))) : null;
+        out.append(panel("No plan", h("div", { class: "sd-callout sd-danger note bad", role: "alert" }, h("span", { class: "sd-callout-title", text: "This can't be made" }), res.message), fix));
+        stage.append(h("div", { class: "ws-empty" }, h("div", { class: "empty" }, h("b", { text: "No factory to draw" }), h("p", { text: res.message }))));
         return;
       }
       const show = (id) => chart?.focus(id);
@@ -148,18 +153,27 @@ function results(res, st, setTab, find) {
     sources: () => sources(res, find),
     totals: () => totals(res),
   };
-  const body = h("div", { class: "stack" });
-  const tabs = h("div", { class: "tabs", role: "tablist" });
+  const body = h("div", { class: "stack", role: "tabpanel", id: "planner-pane" });
+  const tabs = h("div", { class: "sd-tabs tabs", role: "tablist", "aria-label": "Factory details" });
   const show = (k) => {
     if (!panes[k]) k = "factory";
     setTab(k);
-    tabs.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === k)));
+    tabs.querySelectorAll(".tab").forEach((b) => { const on = b.dataset.k === k; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; if (on) body.setAttribute("aria-labelledby", b.id); });
     clear(body).append(panes[k]());
   };
   for (const [k, label] of [["factory", "Lines"], ["sources", "Sources"], ["totals", "Totals"]]) {
-    tabs.append(h("button", { class: "tab", type: "button", role: "tab", "data-k": k, text: label, on: { click: () => show(k) } }));
+    tabs.append(h("button", { class: "sd-tab tab", type: "button", role: "tab", id: "tab-" + k, "aria-controls": "planner-pane", "data-k": k, text: label, on: { click: () => show(k) } }));
   }
-  const c = h("section", { class: "panel" }, h("h2", { text: "Factory" }), summaryStats(res), tabs, body);
+  tabs.addEventListener("keydown", (e) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const bs = [...tabs.querySelectorAll(".tab")];
+    const next = bs[(bs.indexOf(document.activeElement) + step + bs.length) % bs.length];
+    next.focus();
+    next.click();
+  });
+  const c = h("section", { class: "panel results" }, h("h2", { text: "Factory" }), summaryStats(res), tabs, body);
   show(st.tab);
   return c;
 }
@@ -172,11 +186,11 @@ function diagram(res, st, persist, setChart) {
   const holder = h("div", { class: "ws-holder" });
   const draw = () => {
     const toolbar = h("div", { class: "ws-tool" },
-      seg([{ value: "machines", label: `Each machine (${fmt(machines, 0)})` }, { value: "lines", label: `Lines (${res.lines.length})` }], st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" }));
+      seg([{ value: "machines", label: `Each machine (${fmt(machines, 0)})`, title: tooMany ? "Too many machines to draw one by one" : null }, { value: "lines", label: `Lines (${res.lines.length})` }], tooMany ? "lines" : st.view, (v) => { st.view = v; persist(); draw(); }, { label: "Show" }));
     const fc = factoryDiagram(res, { perMachine: st.view !== "lines" && !tooMany, stage: true, toolbar });
     setChart(fc.chart);
     holder.replaceChildren(
-      tooMany && st.view !== "lines" ? h("p", { class: "note warn ws-banner", text: `${fmt(machines, 0)} machines are too many to draw one by one, so each line is one card.` }) : "",
+      tooMany && st.view !== "lines" ? h("p", { class: "sd-callout sd-warn note warn ws-banner", text: `${fmt(machines, 0)} machines are too many to draw one by one, so each line is one card.` }) : "",
       fc);
   };
   draw();
@@ -188,7 +202,7 @@ const producerName = (p, item) => (p.kind === "line" ? p.line.recipe.name + " li
 
 function factory(res, show) {
   return h("div", { class: "stack" },
-    h("p", { class: "tiny", text: "Production lines, from raw materials to products. \"Show\" finds a line's machines in the diagram; a split's \"build\" opens its exact splitters and mergers." }),
+    h("p", { class: "sd-hint tiny", text: "Production lines, from raw materials to products. \"Show\" finds a line's machines in the diagram; \"Build this split\" opens its exact splitters and mergers." }),
     h("div", { class: "lines" }, res.lines.map((L, i) => line(L, res, i % 8, show))));
 }
 
@@ -205,11 +219,15 @@ function sources(res, show) {
     const c = carrier(r.item, r.rate);
     return h("article", { class: "line cc2" },
       h("header", null, h("b", null, itemLink(r.item)), h("span", { text: rate(r.item, r.rate) }), h("span", { class: "spacer" }),
-        h("button", { class: "linkish", type: "button", text: "show", on: { click: () => show("src:" + r.item) } })),
-      h("p", { class: "tiny", text: `${c.count > 1 ? c.count + " × " : ""}${c.name} · ${ext(r)}` }),
+        showBtn(() => show("src:" + r.item))),
+      h("p", { class: "sd-hint tiny", text: `${c.count > 1 ? c.count + " × " : ""}${c.name} · ${ext(r)}` }),
       h("ul", { class: "feeds" }, distribution(res, r.item).map((x) => h("li", null, `→ ${consumerName(x)}: ${fmt(x.rate)} (${fmt(x.share * 100, 1)}%)`))));
   }));
 }
+
+// A consumer's colour is its own line's (the pin on its card and its machines), products green, surplus amber.
+const consumerColour = (x, res) => (x.kind === "line" ? `var(--c${res.lines.indexOf(x.line) % 8})` : x.kind === "target" ? "var(--ok)" : "var(--warn)");
+const showBtn = (fn) => btn("Show", fn, { small: true, kind: "ghost", ico: "locate", cls: "linkish", title: "Find it in the diagram" });
 
 function line(L, res, ci, show) {
   const b = buildings[L.recipe.b];
@@ -226,19 +244,19 @@ function line(L, res, ci, show) {
     return h("li", { class: "stack" },
       h("div", null, h("span", { class: "r", text: rate(it, n) }), " ", itemLink(it), h("span", { class: "s", text: ` · ${c.count > 1 ? c.count + " × " : ""}${c.name}` })),
       cons.length > 1 ? h("div", { class: "share", role: "img", "aria-label": cons.map((x) => `${consumerName(x)} ${fmt(x.share * 100, 1)}%`).join(", ") },
-        cons.map((x, i) => h("i", { vars: { width: (x.share * 100).toFixed(3) + "%", "--c": `var(--c${(ci + i + 1) % 8})` } }))) : null,
-      h("ul", null, cons.map((x) => h("li", null, h("span", { class: "s", text: "→" }), consumerName(x), h("span", { class: "r", text: fmt(x.rate * mine) }), h("span", { class: "s", text: fmt(x.share * 100, 1) + "%" })))),
-      cons.length > 1 || res.balance.get(it).producers.length > 1 ? h("button", { class: "linkish", type: "button", text: "build this split ›", on: { click: () => show("bal:" + it) } }) : null);
+        cons.map((x) => h("i", { vars: { width: (x.share * 100).toFixed(3) + "%", "--c": consumerColour(x, res) } }))) : null,
+      h("ul", null, cons.map((x) => h("li", null, h("i", { class: "pin", vars: { "--c": consumerColour(x, res) }, "aria-hidden": "true" }), consumerName(x), h("span", { class: "r", text: fmt(x.rate * mine) }), h("span", { class: "s", text: fmt(x.share * 100, 1) + "%" })))),
+      cons.length > 1 || res.balance.get(it).producers.length > 1 ? btn("Build this split", () => show("bal:" + it), { small: true, kind: "ghost", ico: "chevron", after: true, cls: "linkish split" }) : null);
   });
   return h("article", { class: "line cc" + ci },
-    h("header", null, h("b", { text: L.recipe.name }), L.recipe.alt ? h("span", { class: "tag alt", text: "alternate" }) : null,
+    h("header", null, h("b", { text: L.recipe.name }), L.recipe.alt ? h("span", { class: "sd-tag tag alt", text: "alternate" }) : null,
       h("span", { text: `${L.built} × ${b.name} at ${pct(L.clock)}` }),
       Math.abs(L.exact - L.built) > 1e-6 ? h("span", { class: "dim", text: `(${fmt(L.exact, 3)} at 100%)` }) : null,
-      h("span", { class: "spacer" }), h("span", { text: mw(L.power) }),
-      h("button", { class: "linkish", type: "button", text: "show", on: { click: () => show(`m:${L.recipe.id}:0`) } })),
+      h("span", { class: "spacer" }), h("span", { class: "pw", text: mw(L.power) }),
+      showBtn(() => show(`m:${L.recipe.id}:0`))),
     h("div", { class: "flowgrid" },
-      h("div", null, h("h4", { text: "In" }), h("ul", null, ins)),
-      h("div", null, h("h4", { text: "Out" }), h("ul", null, outs))));
+      h("div", null, h("h3", { text: "In" }), h("ul", null, ins)),
+      h("div", null, h("h3", { text: "Out" }), h("ul", null, outs))));
 }
 
 function totals(res) {
@@ -250,17 +268,17 @@ function totals(res) {
       { head: "Count", n: true, cell: (r) => String(r.n) },
       { head: "Power", n: true, cell: (r) => mw(r.power) },
     ], by.sort((a, b) => b.power - a.power)),
-    surplus.length ? h("div", { class: "note warn" }, h("b", { text: "Surplus: " }), surplus.map((x, i) => [i ? ", " : "", itemLink(x.item), " " + rate(x.item, x.rate)]),
-      ". Sink it, store it, or add a product that uses it.") : h("p", { class: "tiny", text: "No surplus: every byproduct is used." }),
-    h("p", { class: "tiny", text: "Power counts the production machines as built (rounded up and underclocked), not the miners and extractors." }));
+    surplus.length ? h("div", { class: "sd-callout sd-warn note warn" }, h("b", { text: "Surplus: " }), surplus.map((x, i) => [i ? ", " : "", itemLink(x.item), " " + rate(x.item, x.rate)]),
+      ". Sink it, store it, or add a product that uses it.") : h("p", { class: "sd-hint tiny", text: "No surplus: every byproduct is used." }),
+    h("p", { class: "sd-hint tiny", text: "Power counts the production machines as built (rounded up and underclocked), not the miners and extractors." }));
 }
 
 function recipeDialog(st, onChange) {
   const multi = new Map();
   for (const r of recipes) for (const [o] of r.out.slice(0, 1)) (multi.get(o) ?? multi.set(o, []).get(o)).push(r);
   const groups = [...multi].filter(([, rs]) => rs.length > 1 || rs.some((r) => r.alt)).sort((a, b) => itemName(a[0]).localeCompare(itemName(b[0])));
-  const body = h("div", { class: "dbody" });
-  const filter = h("input", { class: "ctl", type: "search", placeholder: "Filter by item or recipe…", "aria-label": "Filter recipes" });
+  const body = h("div", { class: "sd-body dbody" });
+  const filter = h("input", { class: "sd-input sd-small ctl", type: "search", placeholder: "Filter by item or recipe…", "aria-label": "Filter recipes" });
   const isOn = (r) => (defaultRecipes().has(r.id) ? !st.off.includes(r.id) : st.alts.includes(r.id));
   const set = (r, on) => {
     if (defaultRecipes().has(r.id)) st.off = on ? st.off.filter((x) => x !== r.id) : [...new Set([...st.off, r.id])];
@@ -269,14 +287,17 @@ function recipeDialog(st, onChange) {
   };
   function draw() {
     const q = filter.value.trim().toLowerCase();
-    clear(body).append(filter);
+    clear(body);
+    let shown = 0;
     for (const [it, rs] of groups) {
       if (q && !itemName(it).toLowerCase().includes(q) && !rs.some((r) => r.name.toLowerCase().includes(q))) continue;
-      body.append(h("div", { class: "recgroup" }, h("h4", { text: itemName(it) }), rs.map((r) =>
-        h("label", null, h("input", { type: "checkbox", checked: isOn(r), on: { change: (e) => set(r, e.target.checked) } }),
-          r.name, r.alt ? h("span", { class: "tag alt", text: "alt" }) : isConversion(r) ? h("span", { class: "tag", text: "converter" }) : null,
-          h("i", { text: `${buildings[r.b].name}: ${r.in.map(([i, n]) => fmt(n * 60 / r.time, 1) + " " + itemName(i)).join(" + ") || "nothing"}` })))));
+      shown++;
+      body.append(h("div", { class: "recgroup" }, h("h3", { text: itemName(it) }), rs.map((r) =>
+        h("label", { class: "sd-check" }, h("input", { type: "checkbox", checked: isOn(r), on: { change: (e) => set(r, e.target.checked) } }),
+          h("span", null, r.name, " ", r.alt ? h("span", { class: "sd-tag tag alt", text: "alt" }) : isConversion(r) ? h("span", { class: "sd-tag sd-plain tag", text: "converter" }) : null,
+            h("i", { text: `${buildings[r.b].name}: ${r.in.map(([i, n]) => fmt(n * 60 / r.time, 1) + " " + itemName(i)).join(" + ") || "nothing"}` }))))));
     }
+    if (!shown) body.append(h("p", { class: "empty-note sd-hint", text: `No recipe or item matches “${filter.value.trim()}”.` }));
   }
   filter.addEventListener("input", draw);
   const all = (on) => {
@@ -285,13 +306,14 @@ function recipeDialog(st, onChange) {
     onChange();
     draw();
   };
-  const dlg = h("dialog", { class: "dialog", "aria-label": "Recipes" },
-    h("header", null, h("h2", { text: "Recipes the planner may use" }), h("button", { class: "xbtn", type: "button", "aria-label": "Close", text: "×", on: { click: () => dlg.close() } })),
+  const dlg = h("dialog", { class: "sd-dialog dialog", "aria-labelledby": "rec-title" },
+    h("header", null, h("h2", { id: "rec-title", text: "Recipes the planner may use" }), closeBtn("Close", () => dlg.close())),
+    h("div", { class: "dfilter" }, filter),
     body,
-    h("footer", null, h("button", { class: "btn small", type: "button", text: "All alternates on", on: { click: () => all(true) } }),
-      h("button", { class: "btn small", type: "button", text: "Standard recipes only", on: { click: () => all(false) } }),
-      h("span", { class: "spacer" }), h("span", { class: "tiny", text: "Per-minute amounts are for one machine at 100%." }),
-      h("button", { class: "btn primary", type: "button", text: "Done", on: { click: () => dlg.close() } })));
+    h("footer", null, btn("All alternates on", () => all(true), { small: true }),
+      btn("Standard recipes only", () => all(false), { small: true }),
+      h("span", { class: "spacer" }), h("span", { class: "sd-hint tiny", text: "Per-minute amounts are for one machine at 100%." }),
+      btn("Done", () => dlg.close(), { kind: "primary" })));
   draw();
   return dlg;
 }

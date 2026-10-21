@@ -6,7 +6,9 @@
  *
  * The shared theme, settings panel and night sky live in the portfolio repo
  * (areeb-ece.github.io, public/design/). Without them the page must fall back to its own
- * light/dark switch, which is what runs by default. To check the real thing:
+ * light/dark switch and its copy of the shared tokens and components (assets/design/),
+ * which is what runs by default. To check the real thing (/design/fonts.css's font files
+ * are read from the folder beside it, ../fonts/):
  *   DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:browser */
 import http from "node:http";
 import fs from "node:fs";
@@ -28,9 +30,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": TYPES[path.extname(url)] || "text/plain" }); res.end(); return;
   }
   if (url.startsWith("/design/")) file = path.join(DESIGN, path.basename(url));
+  // /design/fonts.css points at the portfolio's own font files, one folder up.
+  else if (url.startsWith("/fonts/") && DESIGN) file = path.join(DESIGN, "..", "fonts", path.basename(url));
   else if (url.startsWith(BASE_PATH)) file = path.join(ROOT, url.slice(BASE_PATH.length) || "index.html");
   if (file && file.endsWith(path.sep)) file += "index.html";
-  if (!file || !file.startsWith(url.startsWith("/design/") ? DESIGN : ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+  if (!file || !file.startsWith(url.startsWith("/design/") || url.startsWith("/fonts/") ? path.dirname(DESIGN) : ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.writeHead(404); res.end(); return;
   }
   res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });

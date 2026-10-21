@@ -50,18 +50,25 @@ portfolio, which reserves that path.
 npm test                 # the maths (node --test, no browser)
 npm i --no-save playwright@1.56.1
 npm run test:browser     # every tool in Chromium: no errors, no CSP violations, no network, no sideways scroll
-DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:browser   # with the shared theme and sky
+npm run test:features    # every feature, clicked and typed the way a player would, at desktop and phone width
+DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:browser    # with the shared theme and sky
+DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:features
 ```
 
-CI (`.github/workflows/test.yml`) runs all three on every push.
+With `DESIGN_DIR`, the checks serve `/design/` from that folder and `/fonts/` from the folder
+beside it (where `/design/fonts.css` finds Libre Franklin). CI (`.github/workflows/test.yml`)
+runs them all on every push, offline and with the files the live portfolio serves.
 
 ## How it's put together
 
 ```
 index.html          the page: title bar, tool list, the current tool
-css/style.css       the OTU Calendar sheet (panels, controls, dialogs) plus tables, cards and diagrams
+css/style.css       the layout of the tools on the shared design (/design/): sheets, columns, the planner
+                    workspace and the chart. Only master tokens; components are the shared sd- ones
+assets/design/      a copy of the master's tokens.css and ui.css, linked only when /design/ is missing
+                    or older than the shared scales and components (see Design)
 js/app.js           tool list and hash routes (#/planner, #/items/IronPlate)
-js/ui.js            DOM helpers, saved state, item pickers
+js/ui.js            DOM helpers, saved state, fields (label, hint, inline error), item pickers, icons
 js/tools/*.js       one module per tool
 js/lib/*.js         the maths, no DOM: lp.js (simplex), planner.js, machines.js, extract.js,
                     power.js, belts.js, logistics.js, sink.js, milestones.js, compare.js
@@ -71,7 +78,8 @@ js/lib/flowlayout.js  its layered layout (adapted from PrereqFlow's js/layout.js
 js/lib/factory.js   the planner's result as a machine-level graph with exact splitter nodes
 js/graph.js         the planner's factory diagram
 js/splitview.js     splitter plans as flowcharts
-tests/              lib.test.js (unit), browser-check.js (Playwright)
+tests/              lib.test.js (unit), browser-check.js and feature-check.js (Playwright)
+PRODUCT.md          who the tools are for and the product's principles (for design work)
 ```
 
 ### The planner
@@ -110,6 +118,8 @@ ratio, such as "6×64 : 16×31" for 6 plate and 16 rod constructors.
 - **Hover** a card to trace what feeds it (blue) and what it feeds (amber).
 - **Click** a card to pin it and open its details. For a splitter card, that's its full build.
 - **Shift+click** to keep a tree highlighted.
+- **Keyboard:** the chart is one Tab stop. The arrow keys move to the nearest card in that
+  direction (focusing a card traces it), Enter pins it and Escape unpins.
 
 Factories over 600 machines are drawn one card per line instead.
 
@@ -175,12 +185,30 @@ type the real number from the Drone Port instead.
 
 The look is shared with [the portfolio](https://areeb-ece.github.io/),
 [PrereqFlow](https://areeb-ece.github.io/prereqflow/) and
-[OTU Calendar](https://areeb-ece.github.io/otucalendar/). The page loads
-`/design/tokens.css` (the master palette and its themes), `/design/ui.css`,
-`/design/theme.js` and `/design/ui.js` (the gear menu and the night sky) from the
-portfolio. A theme picked on any of the sites applies to all of them. The night and
-paper colours in `css/style.css` and the light/dark button are only a fallback for
-offline use.
+[OTU Calendar](https://areeb-ece.github.io/otucalendar/): each tool is a datasheet sheet on
+the night sky, with a title block closed by a heavy bar. The page loads from the portfolio:
+- `/design/tokens.css`: the master palette and its themes, plus the shared type, spacing,
+  control, motion and layer scales;
+- `/design/ui.css`: the `sd-` components (buttons, fields, segmented controls, tables, tabs,
+  callouts, tags, dialog, toast) and the gear menu and night sky;
+- `/design/fonts.css`: Libre Franklin for text;
+- `/design/theme.js` and `/design/ui.js`: the visitor's saved settings, the settings panel
+  and the sky.
+
+A theme picked on any of the sites applies to all of them. `css/style.css` uses only the
+master's tokens and lays the tools out; mononoki (`assets/fonts/`) sets the figures, tables,
+wordmark and chart cards.
+
+When `/design/` is missing (offline), or serves a version from before the shared scales and
+components, `js/theme.js` links `assets/design/` instead, a copy of the master's `tokens.css`
+and `ui.css`. Refresh it when the master changes:
+
+```sh
+cp ../areeb-ece.github.io/public/design/{tokens,ui}.css assets/design/
+```
+
+The night and paper colours at the top of `css/style.css` and the light/dark button cover
+the moment before that copy loads, and offline use.
 
 ## Privacy
 

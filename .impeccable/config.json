@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "monotonous-spacing",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-21T00:58:29.015Z",
+        "reason": "Claude (session 2026-10-20): index.html is only the static shell; the tools' markup is built by js/ modules and its spacing comes from the master --sp-* scale, which the static scan can't resolve (root-relative /design/ links). The critique's detector pass judged it a false positive."
+      }
+    ]
+  }
+}

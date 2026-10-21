@@ -33,7 +33,7 @@ export function factoryDiagram(res, { perMachine = true, stage = false, toolbar 
         sub: `${n.ins.length} in → ${n.outs.length} out · ${fmt(n.total)}${isLiquid(n.item) ? " m³" : ""}/min`, note: n.liquid ? "fluids share by demand" : n.outs.length > 1 ? "ratio " + ratio : belt(n.item, n.total) };
     }
     const tag = n.kind === "src" ? (n.input ? "input" : "raw") : n.kind === "out" ? "product" : "surplus";
-    return { ...n, w: 176, h: 52, title: itemName(n.item), tag, sub: `${fmt(n.rate)} ${unit(n.item)}`, note: n.kind === "extra" ? "sink or store" : belt(n.item, n.rate) };
+    return { ...n, w: 176, h: 56, title: itemName(n.item), tag, sub: `${fmt(n.rate)} ${unit(n.item)}`, note: n.kind === "extra" ? "sink or store" : belt(n.item, n.rate) };
   });
   const edges = g.edges.map((e) => ({ ...e, label: fmt(e.rate, 2), cls: isLiquid(e.item) ? "fluid" : "", title: `${itemName(e.item)}: ${fmt(e.rate, 3)} ${unit(e.item)}  (${name(byId.get(e.from))} → ${name(byId.get(e.to))})` }));
 
@@ -42,22 +42,22 @@ export function factoryDiagram(res, { perMachine = true, stage = false, toolbar 
       const L = n.line, k = perMachine ? 1 : L.built, b = buildings[L.recipe.b];
       const pm = perMachine ? 1 / L.built : 1;
       return h("div", { class: "stack" },
-        h("p", { class: "tiny", text: `${perMachine ? "One" : L.built} ${b.name}${perMachine ? "" : "s"} at ${pct(L.clock)} · ${mw(machinePower(basePower(L.recipe), L.clock) * k)}${L.recipe.alt ? " · alternate recipe" : ""}` }),
+        h("p", { class: "sd-hint tiny", text: `${perMachine ? "One" : L.built} ${b.name}${perMachine ? "" : "s"} at ${pct(L.clock)} · ${mw(machinePower(basePower(L.recipe), L.clock) * k)}${L.recipe.alt ? " · alternate recipe" : ""}` }),
         table([
           { head: "", cell: (r) => r[0] },
           { head: "Item", cell: (r) => itemLink(r[1]) },
           { head: "Per minute", n: true, cell: (r) => fmt(r[2] * pm, 3) + " " + unit(r[1]) },
           { head: "Belt", cell: (r) => belt(r[1], r[2] * pm) },
         ], [...L.in.map(([i, r]) => ["in", i, r]), ...L.out.map(([i, r]) => ["out", i, r])]),
-        h("p", { class: "tiny", text: `Recipe at 100%: ${perMinute(L.recipe).in.map(([i, r]) => fmt(r, 2) + " " + itemName(i)).join(" + ")} → ${perMinute(L.recipe).out.map(([i, r]) => fmt(r, 2) + " " + itemName(i)).join(" + ")} per minute.` }));
+        h("p", { class: "sd-hint tiny", text: `Recipe at 100%: ${perMinute(L.recipe).in.map(([i, r]) => fmt(r, 2) + " " + itemName(i)).join(" + ")} → ${perMinute(L.recipe).out.map(([i, r]) => fmt(r, 2) + " " + itemName(i)).join(" + ")} per minute.` }));
     }
     if (n.kind === "bal") {
-      if (n.liquid) return h("p", { class: "note", text: "Fluids don't need a ratio: a pipe junction or manifold shares by demand, as long as the pipe carries the total." });
+      if (n.liquid) return h("p", { class: "sd-callout note", text: "Fluids don't need a ratio: a pipe junction or manifold shares by demand, as long as the pipe carries the total." });
       const outs = n.outs.map((o) => ({ label: name(byId.get(o.id)), rate: o.rate }));
       const ins = n.ins.map((i) => ({ label: name(byId.get(i.id)), rate: i.rate }));
       return splitView(outs, n.item, { inputs: ins, tol: PLAN_TOL });
     }
-    return h("p", { class: "tiny", text: `${fmt(n.rate, 3)} ${unit(n.item)} on ${belt(n.item, n.rate)}.` });
+    return h("p", { class: "sd-hint tiny", text: `${fmt(n.rate, 3)} ${unit(n.item)} on ${belt(n.item, n.rate)}.` });
   };
   const swatch = (cls, label) => h("span", { class: "k" }, h("span", { class: cls }), label);
   return flowchart({ nodes, edges }, {

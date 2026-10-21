@@ -18,7 +18,7 @@ export default {
     const st = load(KEY, { list: [{ item: "ModularFrameHeavy", rate: 2 }, { item: "Computer", rate: 2.5 }], printed: 0, progress: 0 });
     const persist = () => save(KEY, st);
     const out = h("div", { class: "stack" });
-    const q = h("input", { class: "ctl", type: "search", placeholder: "Filter…", "aria-label": "Filter items" });
+    const q = h("input", { class: "sd-input sd-small ctl", type: "search", placeholder: "Filter by name…", "aria-label": "Filter the points list" });
     const rank = h("div");
     function run() {
       persist();
@@ -35,8 +35,8 @@ export default {
           { head: "Costs", n: true, cell: (r) => fmt(r.cost, 0) },
           { head: "Prints in", n: true, cell: (r) => time(r.minutes) },
         ], next),
-        p.rows.some((r) => !r.points) ? h("p", { class: "note warn", text: "Fluids score nothing: package them first. Items with no points can't go in the sink." }) : null,
-        h("p", { class: "tiny", text: "The first three coupons cost 500 points each; after that the cost rises every three coupons (250·(⌈n/3⌉ − 1)² + 1000). Printing a coupon spends its points." })));
+        p.rows.some((r) => !r.points) ? h("p", { class: "sd-callout sd-warn note warn", text: "Fluids score nothing: package them first. Items with no points can't go in the sink." }) : null,
+        h("p", { class: "sd-hint tiny", text: "The first three coupons cost 500 points each; after that the cost rises every three coupons (250·(⌈n/3⌉ − 1)² + 1000). Printing a coupon spends its points." })));
     }
     function drawRank() {
       const t = q.value.trim().toLowerCase();
@@ -49,7 +49,7 @@ export default {
     q.addEventListener("input", drawRank);
     view.append(toolHead(this), h("div", { class: "tgrid" },
       h("div", { class: "stack" },
-        card("Items going in", itemRows(st.list, run, { kind: "sink", placeholder: "Add item" })),
+        card("Items going in", itemRows(st.list, run, { kind: "sink", noun: "Sink item", placeholder: "Add item", emptyText: "Add an item and how many go in per minute." })),
         card("Coupons so far",
           h("div", { class: "two" },
             num("Coupons printed", st.printed, (v) => { st.printed = Math.max(0, Math.round(v || 0)); run(); }, { min: 0, step: 1, hint: "All time, not just in hand." }),

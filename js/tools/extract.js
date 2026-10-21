@@ -1,5 +1,5 @@
 // Miner & node calculator: miners, oil and water extractors, resource wells.
-import { h, clear, load, save, num, seg, select, stat, table, card, toolHead } from "../ui.js";
+import { h, clear, load, save, num, segField, select, stat, table, card, toolHead, fold } from "../ui.js";
 import { itemName, isLiquid, fmt, pct, mw, BELTS, PIPES, PURITY } from "../lib/game.js";
 import { EXTRACTORS, extractor, extraction, clockForCap, forTarget, well } from "../lib/extract.js";
 
@@ -24,7 +24,7 @@ export default {
     function drawRes() {
       const e = EXTRACTORS[st.kind];
       if (!e.res.includes(st.resource)) st.resource = e.res[0];
-      resBox.replaceChildren(e.res.length > 1 ? select("Resource", e.res.map((r) => ({ value: r, label: itemName(r) })), st.resource, (v) => { st.resource = v; persist(); run(); }) : h("p", { class: "tiny", text: itemName(e.res[0]) }));
+      resBox.replaceChildren(e.res.length > 1 ? select("Resource", e.res.map((r) => ({ value: r, label: itemName(r) })), st.resource, (v) => { st.resource = v; persist(); run(); }) : h("div", { class: "sd-field fl" }, h("span", { class: "sd-label", text: "Resource" }), h("p", { class: "fixed", text: itemName(e.res[0]) })));
     }
     function run() {
       persist();
@@ -46,8 +46,8 @@ export default {
           ...Object.keys(PURITY).filter((p) => e.purity || p === "normal").map((p) => ({ head: e.purity ? p : "rate", n: true, cell: (c) => fmt(extractor(st.kind, p, c).rate) })),
           { head: "Power", n: true, cell: (c) => mw(extractor(st.kind, "normal", c).power) },
         ], [0.5, 1, 1.5, 2, 2.5]),
-        h("p", { class: "tiny", text: "Fastest clock that still fits on each " + (liquid ? "pipe" : "belt") + ": " + caps.map((b) => `${b.name} ${pct(clockForCap(st.kind, st.purity, b.rate), 0)}`).join(" · ") }),
-        (() => { const t = forTarget(st.kind, st.purity, st.target, st.clock / 100); return h("div", { class: "row" }, num(null, st.target, (v) => { st.target = v || 0; run(); }, { unit: u }), h("span", { text: `needs ${t.n} at ${pct(t.clock)} (clock capped at ${pct(st.clock / 100)})` })); })()));
+        h("p", { class: "sd-hint tiny", text: "Fastest clock that still fits on each " + (liquid ? "pipe" : "belt") + ": " + caps.map((b) => `${b.name} ${pct(clockForCap(st.kind, st.purity, b.rate), 0)}`).join(" · ") }),
+        (() => { const t = forTarget(st.kind, st.purity, st.target, st.clock / 100); return h("div", { class: "row target" }, num("For a target of", st.target, (v) => { st.target = v || 0; run(); }, { unit: u }), h("p", { class: "answer", "aria-live": "polite", text: `needs ${t.n} at ${pct(t.clock)} (clock capped at ${pct(st.clock / 100)})` })); })()));
     }
     function runWell() {
       persist();
@@ -58,7 +58,7 @@ export default {
         stat(mw(w.power), "Pressurizer power"),
         stat(String(w.count), "extractors"),
         stat(String(w.shards), "Power Shards")),
-        h("p", { class: "tiny", text: `Each satellite node makes ${EXTRACTORS.FrackingExtractor.rate * 0.5} / ${EXTRACTORS.FrackingExtractor.rate} / ${EXTRACTORS.FrackingExtractor.rate * 2} m³/min (impure / normal / pure) at 100%. The Pressurizer's clock sets them all and is the only part that draws power.` }));
+        h("p", { class: "sd-hint tiny", text: `Each satellite node makes ${EXTRACTORS.FrackingExtractor.rate * 0.5} / ${EXTRACTORS.FrackingExtractor.rate} / ${EXTRACTORS.FrackingExtractor.rate * 2} m³/min (impure / normal / pure) at 100%. The Pressurizer's clock sets them all and is the only part that draws power.` }));
     }
 
     view.append(toolHead(this), h("div", { class: "tgrid" },
@@ -66,15 +66,15 @@ export default {
         card("Extractor",
           select("Building", Object.entries(EXTRACTORS).filter(([k]) => k !== "FrackingExtractor").map(([value, e]) => ({ value, label: e.name })), st.kind, (v) => { st.kind = v; drawRes(); run(); }),
           resBox,
-          h("label", { class: "fl" }, "Node purity", seg(PUR, st.purity, (v) => { st.purity = v; run(); }, { wide: true })),
+          segField("Node purity", PUR, st.purity, (v) => { st.purity = v; run(); }, { wide: true }),
           h("div", { class: "two" },
             num("Clock", st.clock, (v) => { st.clock = Math.min(250, Math.max(1, v ?? 100)); run(); }, { unit: "%", min: 1, max: 250 }),
             num("How many", st.count, (v) => { st.count = Math.max(1, Math.round(v || 1)); run(); }, { min: 1, step: 1 }))),
-        card("Resource well",
+        h("section", { class: "card tune" }, fold("Resource well", false, "Pressurizer and satellite nodes",
           select("Resource", EXTRACTORS.FrackingExtractor.res.map((r) => ({ value: r, label: itemName(r) })), st.wellRes, (v) => { st.wellRes = v; runWell(); }),
           h("div", { class: "three" }, ["impure", "normal", "pure"].map((p) => num(p[0].toUpperCase() + p.slice(1), st.well[p], (v) => { st.well[p] = Math.max(0, Math.round(v || 0)); runWell(); }, { min: 0, step: 1 }))),
           num("Pressurizer clock", st.wellClock, (v) => { st.wellClock = Math.min(250, Math.max(1, v ?? 100)); runWell(); }, { unit: "%", min: 1, max: 250 }),
-          wellOut)),
+          wellOut))),
       out));
     drawRes();
     run();
