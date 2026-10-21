@@ -17,7 +17,7 @@ This is an independent fan project, not affiliated with Coffee Stain Studios.
 
 | Group | Tool | What it does |
 | --- | --- | --- |
-| Planning | **Production planner** | Several products in one factory. Each shared part is made on one line, raw materials are tallied, and every line's output is rationed between the lines and products that use it. A factory diagram in the PrereqFlow style shows every machine as its own card, with an exact splitter/merger card wherever belts split or join. Inputs you already have, recipe choice (alternates, converter recipes), three objectives, clock cap, and a link to share the plan. |
+| Planning | **Production planner** | Several products in one factory. Each shared part is made on one line, raw materials are tallied, and every line's output is rationed between the lines and products that use it. A factory diagram in the PrereqFlow style shows every machine as its own card, with an exact splitter/merger card wherever belts split or join. Inputs you already have, recipe choice (alternates, converter recipes), three objectives, clock cap, the fastest belt you can build (belt sizes and every splitter build keep within it), and a link to share the plan. |
 | | **Recipes & items** | Every item: what makes it, what it goes into, per-minute rates, stack size, sink points, fuel value. |
 | | **Alternate recipe comparer** | Every recipe for one item, each planned back to raw resources: raw cost per unit, power, machines, leftovers. |
 | | **Milestone shopping list** | Tick off HUB milestones and Space Elevator phases; the parts still to deliver, optionally sent to the planner as a rate. Supports the 1.2 Game Mode Space Elevator cost. |
@@ -193,8 +193,25 @@ Then pick the rest:
 - PNG at 2×, 3×, 4× or 6×, scaled down if a browser can't draw a canvas that big, or SVG;
 - the current theme, the dark sheet or the light one for printing.
 
-The credit line is always drawn. `js/export.js` reads the chart's layout, and the panels'
-headings, fields, stat tiles and tables, back from the page. It turns them into drawing
+The credit line is always drawn.
+
+**Panels in images.** Panels are laid out in columns:
+- Under a diagram, there are as many columns as its width holds.
+- On their own, the layout tried is the one closest to a 4:3 sheet that leaves the least
+  space empty.
+- Panels read down each column, then across. A long panel or table continues in the next
+  column, marked "(continued)", with the table's head repeated.
+- A table too wide for one column takes the full width.
+
+The planner draws its own panels for images rather than its page, so the full production
+totals fit a picture:
+- headline figures: power, machines, resources in, products out;
+- products and raw resources, each with its belt;
+- every production line: machines, clock, power, what it makes and uses;
+- buildings.
+
+`js/export.js` reads the chart's layout, and the panels' headings, fields, stat tiles and
+tables, back from the page. It turns them into drawing
 operations, which `js/image.js` draws to a canvas or writes out as SVG. Colours come from
 the shared palette, read through a hidden element carrying the chosen theme.
 

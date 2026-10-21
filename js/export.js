@@ -6,8 +6,12 @@
 //     trees, the pinned card with everything that feeds it and everything it feeds, the
 //     part on screen, or the build inside the pinned splitter card;
 //   - the tool's panels (inputs, results, tables), under the diagram or on their own.
-// Tools can describe themselves for the title block by setting view.imageInfo to a
-// function returning { what, facts, sections, kinds } (all optional).
+// Tools can describe themselves by setting view.imageInfo to a function returning (all optional):
+//   what, facts   the title block's two lines
+//   kinds         legend names for card kinds
+//   panels        panels of their own, [{ title, blocks }] (blocks as readSections makes them)
+//   skip          titles of the page's panels those replace
+//   defaults      panels ticked under a diagram; sheet: panels ticked for the panels alone
 import { h, btn, closeBtn, seg, toast } from "./ui.js";
 import { layout } from "./lib/flowlayout.js";
 import { measure, fit, wrap, fitScale, toPNG, toSVG, useFonts } from "./image.js";
@@ -263,91 +267,212 @@ export function readSections(root) {
   return out;
 }
 
-// Lays sections out down a column of width W; returns the height used.
-function drawSections(secs, ops, x0, y0, W, P) {
-  let y = y0;
-  const TX = "text";
-  for (const sec of secs) {
-    y += 26;
-    ops.push({ t: "text", x: x0, y, text: fit(sec.title, W, 15, 700, TX), size: 15, weight: 700, color: P.ink, font: TX });
-    y += 8;
-    ops.push({ t: "path", d: `M${x0},${y + 0.5} H${x0 + W}`, stroke: P.rule, sw: 1 });
-    y += 6;
-    const blocks = sec.blocks;
-    for (let b = 0; b < blocks.length; b++) {
-      const bl = blocks[b];
-      if (bl.t === "sub") {
-        y += 22;
-        ops.push({ t: "text", x: x0, y, text: fit(bl.text, W, 12.5, 700, TX), size: 12.5, weight: 700, color: P.ink2, font: TX });
-        y += 2;
-      } else if (bl.t === "p") {
-        const color = bl.tone === "warn" ? P.warn : bl.tone === "bad" ? P.kind.extra.border : bl.strong ? P.ink : P.ink2;
-        for (const line of wrap(bl.text, W, 12.5, bl.strong ? 600 : 400, 30, TX)) { y += 18; ops.push({ t: "text", x: x0, y, text: line, size: 12.5, weight: bl.strong ? 600 : 400, color, font: TX }); }
-        y += 4;
-      } else if (bl.t === "kv") {
-        // a run of fields: labels in one column, values beside them
-        let e = b;
-        while (e + 1 < blocks.length && blocks[e + 1].t === "kv") e++;
-        const run = blocks.slice(b, e + 1);
-        const kw = Math.min(W * 0.45, Math.max(...run.map((r) => measure(r.k, 12, 400, TX))) + 16);
-        for (const r of run) {
-          const vl = wrap(r.v, W - kw, 12.5, 400, 4);
-          y += 18;
-          ops.push({ t: "text", x: x0, y, text: fit(r.k, kw - 12, 12, 400, TX), size: 12, color: P.ink3, font: TX });
-          vl.forEach((l, i) => { if (i) y += 17; ops.push({ t: "text", x: x0 + kw, y, text: l, size: 12.5, color: P.ink }); });
-        }
-        y += 6;
-        b = e;
-      } else if (bl.t === "stats") {
-        y += 10;
-        let x = x0, rowH = 52;
-        for (const it of bl.items) {
-          const w = Math.min(W, Math.max(measure(it.v, 17, 700), measure(it.k, 11.5, 400, TX)) + 28);
-          if (x > x0 && x + w > x0 + W) { x = x0; y += rowH + 8; }
-          ops.push({ t: "rect", x, y, w, h: rowH, r: 7, fill: it.hi ? P.tint : P.card });
-          ops.push({ t: "rect", x, y, w, h: rowH, r: 7, stroke: it.hi ? P.accent : P.rule, sw: 1 });
-          ops.push({ t: "text", x: x + 14, y: y + 23, text: fit(it.v, w - 28, 17, 700), size: 17, weight: 700, color: it.hi ? P.accent : P.ink });
-          ops.push({ t: "text", x: x + 14, y: y + 41, text: fit(it.k, w - 28, 11.5, 400, TX), size: 11.5, color: P.ink3, font: TX });
-          x += w + 8;
-        }
-        y += rowH + 6;
-      } else if (bl.t === "table") y = drawTable(bl, ops, x0, y + 10, W, P) + 6;
-    }
+// ── laying the panels out ────────────────────────────────────────────────────
+// Panels flow down columns, each into the shortest one, so a wide image fills its width
+// instead of running one narrow column down the middle. A panel with a table too wide for
+// one column spans as many as it needs, and a panel taller than its share is split between
+// blocks (a long table between rows, with its head repeated) and goes on "(continued)".
+const TX = "text";
+const GAP = 28, VGAP = 8; // between columns, between panels in a column
+
+// Consecutive fields become one block, so their labels line up.
+function runs(blocks) {
+  const out = [];
+  for (const b of blocks) {
+    if (b.t === "kv" && out.at(-1)?.t === "kvs") out.at(-1).items.push(b);
+    else out.push(b.t === "kv" ? { t: "kvs", items: [b] } : b);
   }
-  return y - y0 + 10;
+  return out;
 }
-function drawTable(tb, ops, x0, y0, W, P) {
-  const TX = "text", n = tb.head.length;
-  const font = (c) => (tb.num[c] ? "mono" : TX);
-  // natural widths, then the widest columns give way until it fits
-  const nat = tb.head.map((hd, c) => Math.max(measure(hd, 11.5, 700, TX), ...tb.rows.map((r) => measure(r.cells[c] ?? "", 12.5, 400, font(c)))) + 20);
-  let wsum = nat.reduce((a, b) => a + b, 0);
-  const w = nat.slice();
+
+// One block at (x0, y) in width W; returns the y below it.
+function drawBlock(bl, ops, x0, y, W, P) {
+  if (bl.t === "sub") {
+    y += 22;
+    ops.push({ t: "text", x: x0, y, text: fit(bl.text, W, 12.5, 700, TX), size: 12.5, weight: 700, color: P.ink2, font: TX });
+    return y + 2;
+  }
+  if (bl.t === "p") {
+    const color = bl.tone === "warn" ? P.warn : bl.tone === "bad" ? P.kind.extra.border : bl.strong ? P.ink : P.ink2;
+    for (const line of wrap(bl.text, W, 12.5, bl.strong ? 600 : 400, 30, TX)) { y += 18; ops.push({ t: "text", x: x0, y, text: line, size: 12.5, weight: bl.strong ? 600 : 400, color, font: TX }); }
+    return y + 4;
+  }
+  if (bl.t === "kvs") { // labels in one column, values beside them
+    const kw = Math.min(W * 0.45, Math.max(...bl.items.map((r) => measure(r.k, 12, 400, TX))) + 16);
+    for (const r of bl.items) {
+      const vl = wrap(r.v, W - kw, 12.5, 400, 4);
+      y += 18;
+      ops.push({ t: "text", x: x0, y, text: fit(r.k, kw - 12, 12, 400, TX), size: 12, color: P.ink3, font: TX });
+      vl.forEach((l, i) => { if (i) y += 17; ops.push({ t: "text", x: x0 + kw, y, text: l, size: 12.5, color: P.ink }); });
+    }
+    return y + 6;
+  }
+  if (bl.t === "stats") { // tiles that share each row's width evenly
+    y += 10;
+    const rowH = 52, natural = bl.items.map((it) => Math.max(measure(it.v, 17, 700), measure(it.k, 11.5, 400, TX)) + 28);
+    let i = 0;
+    while (i < bl.items.length) {
+      let j = i, used = 0;
+      while (j < bl.items.length && (j === i || used + 8 + natural[j] <= W)) { used += (j > i ? 8 : 0) + natural[j]; j++; }
+      // the row's spare width shared out, so no tile is narrower than its text
+      const n = j - i, spare = Math.max(0, (W - used) / n);
+      let x = x0;
+      for (let k = i; k < j; k++) {
+        const it = bl.items[k], w = Math.min(W, natural[k] + spare);
+        ops.push({ t: "rect", x, y, w, h: rowH, r: 7, fill: it.hi ? P.tint : P.card });
+        ops.push({ t: "rect", x, y, w, h: rowH, r: 7, stroke: it.hi ? P.accent : P.rule, sw: 1 });
+        ops.push({ t: "text", x: x + 14, y: y + 23, text: fit(it.v, w - 28, 17, 700), size: 17, weight: 700, color: it.hi ? P.accent : P.ink });
+        ops.push({ t: "text", x: x + 14, y: y + 41, text: fit(it.k, w - 28, 11.5, 400, TX), size: 11.5, color: P.ink3, font: TX });
+        x += w + 8;
+      }
+      y += rowH + 8;
+      i = j;
+    }
+    return y - 2;
+  }
+  if (bl.t === "table") return drawTable(bl, ops, x0, y + 10, W, P) + 6;
+  return y;
+}
+
+const cellFont = (tb, c) => (tb.num[c] ? "mono" : TX);
+// A table's columns at their natural widths: the widest header or cell, plus padding.
+const naturalCols = (tb) => tb.head.map((hd, c) => Math.max(measure(hd, 11.5, 700, TX), ...tb.rows.map((r) => measure(r.cells[c] ?? "", 12.5, 400, cellFont(tb, c)))) + 20);
+// …narrowed to fit W: the widest columns give way first.
+function tableCols(tb, W) {
+  if (tb.cols) return tb.cols; // a piece of a split table keeps the whole table's columns
+  const w = naturalCols(tb);
+  let wsum = w.reduce((a, b) => a + b, 0);
+  // A table nearly as wide as its panel fills it: the text columns take the slack.
+  if (wsum < W && wsum >= 0.7 * W) {
+    const text = w.map((_, c) => !tb.num[c]), tw = w.reduce((a, x, c) => a + (text[c] ? x : 0), 0) || wsum;
+    return w.map((x, c) => (text[c] || tw === wsum ? x + ((W - wsum) * x) / tw : x));
+  }
   while (wsum > W) {
     const big = w.indexOf(Math.max(...w));
     const cut = Math.min(wsum - W, w[big] - Math.max(70, w[big] * 0.6));
-    if (cut <= 0.5) { const k = W / wsum; for (let c = 0; c < n; c++) w[c] *= k; break; }
+    if (cut <= 0.5) { const k = W / wsum; for (let c = 0; c < w.length; c++) w[c] *= k; break; }
     w[big] -= cut; wsum -= cut;
   }
-  const xs = [];
+  return w;
+}
+const rowCells = (tb, r, w) => r.cells.map((t, c) => (c < tb.head.length ? wrap(t, w[c] - 20, 12.5, 400, 4, cellFont(tb, c)) : []));
+const rowHeight = (cells) => Math.max(1, ...cells.map((l) => l.length)) * 16 + 10;
+
+function drawTable(tb, ops, x0, y0, W, P) {
+  const w = tableCols(tb, W), xs = [];
   w.reduce((x, cw, c) => ((xs[c] = x), x + cw), x0);
+  const tw = Math.min(W, w.reduce((a, b) => a + b, 0));
   let y = y0;
-  // head
-  ops.push({ t: "rect", x: x0, y, w: Math.min(W, w.reduce((a, b) => a + b, 0)), h: 26, fill: P.sheet2 });
+  ops.push({ t: "rect", x: x0, y, w: tw, h: 26, fill: P.sheet2 });
   tb.head.forEach((hd, c) => ops.push({ t: "text", x: tb.num[c] ? xs[c] + w[c] - 10 : xs[c] + 10, y: y + 17, text: fit(hd, w[c] - 20, 11.5, 700, TX), size: 11.5, weight: 700, color: P.ink3, anchor: tb.num[c] ? "end" : "start", font: TX }));
   y += 26;
-  const tw = Math.min(W, w.reduce((a, b) => a + b, 0));
   for (const r of tb.rows) {
-    const cells = r.cells.map((t, c) => (c < n ? wrap(t, w[c] - 20, 12.5, 400, 4, font(c)) : []));
-    const lines = Math.max(1, ...cells.map((l) => l.length));
-    const rh = lines * 16 + 10;
+    const cells = rowCells(tb, r, w), rh = rowHeight(cells);
     if (r.sel) ops.push({ t: "rect", x: x0, y, w: tw, h: rh, fill: P.tint });
-    cells.forEach((ls, c) => ls.forEach((l, i) => ops.push({ t: "text", x: tb.num[c] ? xs[c] + w[c] - 10 : xs[c] + 10, y: y + 17 + i * 16, text: l, size: 12.5, color: c === 0 ? P.ink : P.ink2, anchor: tb.num[c] ? "end" : "start", font: font(c) })));
+    cells.forEach((ls, c) => ls.forEach((l, i) => ops.push({ t: "text", x: tb.num[c] ? xs[c] + w[c] - 10 : xs[c] + 10, y: y + 17 + i * 16, text: l, size: 12.5, color: c === 0 ? P.ink : P.ink2, anchor: tb.num[c] ? "end" : "start", font: cellFont(tb, c) })));
     y += rh;
     ops.push({ t: "path", d: `M${x0},${y + 0.5} H${x0 + tw}`, stroke: P.rowLine, sw: 1 });
   }
   return y;
 }
+
+// A panel: its title over a rule, then its blocks. Returns its height.
+function drawPanel(pc, ops, x0, y0, W, P) {
+  let y = y0 + 26;
+  ops.push({ t: "text", x: x0, y, text: fit(pc.title + (pc.cont ? " (continued)" : ""), W, 15, 700, TX), size: 15, weight: 700, color: P.ink, font: TX });
+  y += 8;
+  ops.push({ t: "path", d: `M${x0},${y + 0.5} H${x0 + W}`, stroke: P.rule, sw: 1 });
+  y += 6;
+  for (const bl of pc.blocks) y = drawBlock(bl, ops, x0, y, W, P);
+  return y - y0 + 10;
+}
+const panelHeight = (pc, W, P) => drawPanel(pc, [], 0, 0, W, P);
+const blockHeight = (bl, W, P) => drawBlock(bl, [], 0, 0, W, P);
+const EMPTY_PANEL = 50; // a panel's title, rule and bottom padding
+
+// Cuts a panel so the first piece fits `room`: between blocks, or a table between rows.
+// → [first or null, the rest (continued) or null].
+function cutPanel(pc, W, P, room) {
+  const first = { ...pc, blocks: [] }, rest = { title: pc.title, cont: true, blocks: [] };
+  let h = EMPTY_PANEL, full = false;
+  for (const bl of pc.blocks) {
+    if (full) { rest.blocks.push(bl); continue; }
+    const bh = blockHeight(bl, W, P);
+    if (h + bh <= room) { first.blocks.push(bl); h += bh; continue; }
+    full = true;
+    if (bl.t === "table") {
+      const cols = tableCols(bl, W);
+      let th = 42, i = 0; // the gap above, the head, the gap below
+      while (i < bl.rows.length && h + th + rowHeight(rowCells(bl, bl.rows[i], cols)) <= room) th += rowHeight(rowCells(bl, bl.rows[i++], cols));
+      if (i >= 3 && bl.rows.length - i >= 3) { first.blocks.push({ ...bl, rows: bl.rows.slice(0, i), cols }); rest.blocks.push({ ...bl, rows: bl.rows.slice(i), cols }); continue; }
+    }
+    rest.blocks.push(bl);
+  }
+  return [first.blocks.length ? first : null, rest.blocks.length ? rest : null];
+}
+
+// Panels flowed down n columns of about `target` height, in reading order (down, then
+// across), a panel that doesn't fit being cut to fill the column. null when they don't fit.
+function flow(items, n, colW, P, target) {
+  const place = [];
+  let c = 0, y = 0;
+  for (const it of items) {
+    let pc = it.pc, h = it.h;
+    for (;;) {
+      if (c >= n) return null;
+      if (y + h <= target) { place.push({ pc, x: c * (colW + GAP), y, w: colW, h }); y += h + VGAP; break; }
+      if (target - y >= 140 && h > 320) { // a long panel fills the rest of this column; a short one moves on
+        const [head, tail] = cutPanel(pc, colW, P, target - y);
+        if (head) {
+          const hh = panelHeight(head, colW, P);
+          place.push({ pc: head, x: c * (colW + GAP), y, w: colW, h: hh });
+          if (!tail) { y += hh + VGAP; break; }
+          pc = tail; h = panelHeight(tail, colW, P);
+        }
+      }
+      c++; y = 0;
+    }
+  }
+  return place;
+}
+
+// How much of a panel's width its content uses: a table only its columns, anything else all of it.
+const contentWidth = (pc, W) => Math.max(...pc.blocks.map((b) => (b.t === "table" ? Math.min(W, tableCols(b, W).reduce((a, c) => a + c, 0)) : b.t === "sub" ? W / 2 : W)));
+
+/** Panels laid out in n columns across W: → { place: [{ pc, x, y, w }], height, columns, filled }.
+ *  A panel whose table needs more than one column gets the full width, between flows. */
+function layoutPanels(secs, W, P, n) {
+  const colW = (W - GAP * (n - 1)) / n;
+  const items = secs.map((sec) => {
+    const pc = { title: sec.title, blocks: runs(sec.blocks), cont: false };
+    const wide = n > 1 && Math.max(0, ...pc.blocks.filter((b) => b.t === "table").map((b) => naturalCols(b).reduce((a, c) => a + c, 0))) > colW;
+    const w = wide ? W : colW;
+    return { pc, wide, w, h: panelHeight(pc, w, P) };
+  });
+  const place = [];
+  let top = 0, used = new Set(), area = 0;
+  for (let i = 0; i < items.length;) {
+    if (items[i].wide || n === 1) {
+      const it = items[i++];
+      place.push({ pc: it.pc, x: 0, y: top, w: it.w, h: it.h });
+      used.add(0); area += contentWidth(it.pc, it.w) * it.h; top += it.h + VGAP;
+      continue;
+    }
+    const band = [];
+    while (i < items.length && !items[i].wide) band.push(items[i++]);
+    const total = band.reduce((t, x) => t + x.h + VGAP, 0);
+    let target = Math.max(total / n, 160), got = null;
+    for (let k = 0; k < 60 && !(got = flow(band, n, colW, P, target)); k++) target *= 1.05;
+    got = got || band.map((x) => ({ pc: x.pc, x: 0, y: 0, w: colW, h: x.h }));
+    const bandH = Math.max(...got.map((p) => p.y + p.h));
+    for (const p of got) { place.push({ ...p, y: top + p.y }); used.add(p.x); area += contentWidth(p.pc, p.w) * p.h; }
+    top += bandH + VGAP;
+  }
+  const height = Math.max(0, top - VGAP), gridW = Math.max(...place.map((p) => p.x + p.w));
+  return { place, height, columns: place.some((p) => p.w >= W - 1 && n > 1) ? n : used.size, filled: area / Math.max(1, gridW * height) };
+}
+// How wide a column should be for these panels: the widest table's natural width, within limits.
+const columnWidth = (secs) => Math.min(860, Math.max(460, ...secs.flatMap((s) => s.blocks.filter((b) => b.t === "table").map((b) => naturalCols(b).reduce((a, c) => a + c, 0)))));
 
 // ── the whole image ───────────────────────────────────────────────────────────
 const today = () => new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -359,22 +484,45 @@ function buildSpec(o, ctx) {
   const part = chart ? chartPart(chart, o.scope === "inner" ? "chart" : o.scope, o, P) : null;
   const secs = ctx.sections.filter((x) => o.sections.has(x.title));
   const pad = 28;
-  const W = Math.round(Math.max(part ? part.width : 0, secs.length ? 860 : 0, 640));
   const titleH = o.title ? 86 : 0, footH = 40;
+  // The panels' columns. Under a diagram, as many as its width holds; on their own, the
+  // number that makes the picture closest to a 4:3 landscape sheet.
+  let W = Math.round(Math.max(part ? part.width : 0, 640)), L = null;
+  if (secs.length) {
+    const col = columnWidth(secs);
+    if (part) {
+      W = Math.max(W, Math.min(2 * col + GAP, 1200) + 2 * pad);
+      const area = W - 2 * pad, n = Math.max(1, Math.min(secs.length + 2, Math.floor((area + GAP) / (col + GAP))));
+      L = layoutPanels(secs, Math.min(area, n * 860 + (n - 1) * GAP), P, n);
+    } else {
+      // One column as wide as the widest table, or several narrower ones (a wide table spans
+      // two); the best is near 4:3 and leaves the least empty space beside short panels.
+      let best = null;
+      for (let n = 1; n <= 4; n++) {
+        const cw = n === 1 ? col : Math.max(420, Math.min(col, 520));
+        const lay = layoutPanels(secs, n * cw + (n - 1) * GAP, P, n);
+        if (n > 1 && lay.columns < n) break; // not enough to fill another column
+        const w = n * cw + (n - 1) * GAP + 2 * pad, h = titleH + footH + lay.height + 32;
+        const score = Math.abs(Math.log(w / h / 1.33)) + 1.5 * (1 - lay.filled);
+        if (!best || score < best.score) best = { score, lay, w };
+      }
+      L = best.lay;
+      W = Math.max(640, Math.round(best.w));
+    }
+  }
   const ops = [];
   let y = titleH;
   if (part) {
     part.draw(ops, (W - part.width) / 2, y);
     y += part.height;
   }
-  if (secs.length) {
-    const sw = Math.min(W - 2 * pad, 1100);
-    const sx = (W - sw) / 2, top = y;
+  if (L) {
+    const top = y, gw = Math.max(...L.place.map((p) => p.x + p.w)), gx = (W - gw) / 2;
     const tmp = [];
-    const used = drawSections(secs, tmp, sx, y + 4, sw, P);
-    ops.push({ t: "rect", x: 0, y: top, w: W, h: used + 18, fill: P.sheet }, ...tmp);
+    for (const p of L.place) drawPanel(p.pc, tmp, gx + p.x, top + 4 + p.y, p.w, P);
+    ops.push({ t: "rect", x: 0, y: top, w: W, h: L.height + 24, fill: P.sheet }, ...tmp);
     if (part) ops.push({ t: "path", d: `M0,${top + 0.5} H${W}`, stroke: P.rule2, sw: 1 });
-    y += used + 18;
+    y += L.height + 24;
   }
   const H = y + footH;
 
@@ -453,7 +601,8 @@ export function openExport(tool, view) {
   const innerEl = chartEl?.querySelector(".fc-drawer .fc, .fc-details .fc");
   const chart = chartEl?.chart ?? null, inner = innerEl?.chart ?? null;
   const info = view.imageInfo?.() ?? {};
-  const sections = readSections(view.querySelector(".ws-side") ?? view);
+  // the tool's own panels for images (the planner's totals), then the page's, less any they replace
+  const sections = [...(info.panels || []), ...readSections(view.querySelector(".ws-side") ?? view).filter((x) => !(info.skip || []).includes(x.title))];
   const st = chart?.state;
   const pinned = st?.pinned ? chart.graph.nodes.find((n) => n.id === st.pinned) : null;
   const ctx = { tool, info, chart, inner, innerTitle: pinned ? `${pinned.title}${pinned.tag ? " (" + pinned.tag + ")" : ""}, built` : "", sections };
@@ -468,7 +617,7 @@ export function openExport(tool, view) {
   ] : [];
   const want = inner ? "inner" : st?.trees.length ? "trees" : "chart";
   let scope = chart ? want : "sheet";
-  const defaults = new Set(chart ? info.sections ?? [] : sections.map((x) => x.title));
+  const defaults = new Set(chart ? info.defaults ?? [] : info.sheet ?? sections.map((x) => x.title));
   const picked = new Set(sections.map((x) => x.title).filter((t) => defaults.has(t)));
 
   dlg?.remove();

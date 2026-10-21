@@ -26,9 +26,10 @@ export const isLiquid = (id) => !!items[id]?.liquid;
 export const itemName = (id) => items[id]?.name ?? id;
 export const unit = (id) => (isLiquid(id) ? "m³/min" : "/min");
 
-/** Cheapest belt (or pipe, for fluids) that carries `rate`, with how many are needed. */
-export function carrier(id, rate) {
-  const list = isLiquid(id) ? PIPES : BELTS;
+/** Cheapest belt (or pipe, for fluids) that carries `rate`, with how many are needed.
+ *  `max` is the fastest belt the player can build (per minute): nothing faster is offered. */
+export function carrier(id, rate, max = Infinity) {
+  const list = isLiquid(id) ? PIPES : BELTS.filter((b, i) => i === 0 || b.rate <= max + TINY);
   const one = list.find((b) => b.rate >= rate - TINY);
   if (one) return { ...one, count: 1 };
   const top = list[list.length - 1];

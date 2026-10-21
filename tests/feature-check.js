@@ -571,6 +571,20 @@ for (const [w, h, t] of [[1360, 900, "desktop"], [390, 844, "phone"]]) {
     ok(labels.every((x) => x <= 270 + 1e-9), "no belt over 270/min: " + Math.max(...labels));
   });
 
+  await check("planner: the fastest belt you can build limits belt sizes and splitter builds", async () => {
+    await go("planner", { fresh: true });
+    await page.locator(".line").first().waitFor();
+    await page.locator("summary", { hasText: "Options" }).click();
+    await page.getByRole("radio", { name: "Mk.3" }).click();
+    await wait(700);
+    ok((await store("planner")).belt === 2, "belt saved");
+    await page.click('.tab[data-k="sources"]');
+    ok((await text(".ws-side")).includes("2 × Belt Mk.3"), "412.5 ore/min goes on two Mk.3 belts");
+    await page.click('.tab[data-k="factory"]');
+    await page.locator(".ws-side .linkish", { hasText: "build this split" }).first().click();
+    ok((await text(".fc-drawer")).includes("the fastest allowed is Belt Mk.3"), "the pinned split keeps to Mk.3");
+  });
+
   // ── image export ─────────────────────────────────────────────────────────
   const saveImage = async (pick = []) => {
     await page.click("#btnImage");

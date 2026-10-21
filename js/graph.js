@@ -2,15 +2,15 @@
 // left, products and surplus on the right, and a splitter/merger card wherever an
 // item's belts split or join. Pin a splitter card to see its exact build.
 import { h, itemLink, table } from "./ui.js";
-import { buildings, itemName, unit, fmt, pct, mw, carrier, isLiquid, perMinute, basePower, machinePower } from "./lib/game.js";
+import { buildings, itemName, unit, fmt, pct, mw, carrier, isLiquid, perMinute, basePower, machinePower, BELTS } from "./lib/game.js";
 import { factoryGraph, ratioLabel, PLAN_TOL } from "./lib/factory.js";
 import { toWeights } from "./lib/belts.js";
 import { flowchart } from "./flowchart.js";
 import { splitView } from "./splitview.js";
 
-const belt = (item, rate) => { const c = carrier(item, rate); return (c.count > 1 ? c.count + " × " : "") + c.name; };
-
-export function factoryDiagram(res, { perMachine = true, stage = false, toolbar = null } = {}) {
+// cap: the fastest belt the player can build, per minute; fluids always get the fastest pipe.
+export function factoryDiagram(res, { perMachine = true, stage = false, toolbar = null, cap = BELTS.at(-1).rate } = {}) {
+  const belt = (item, rate) => { const c = carrier(item, rate, cap); return (c.count > 1 ? c.count + " × " : "") + c.name; };
   const g = factoryGraph(res, { perMachine });
   const byId = new Map(g.nodes.map((n) => [n.id, n]));
   const name = (n) => {
@@ -55,7 +55,7 @@ export function factoryDiagram(res, { perMachine = true, stage = false, toolbar 
       if (n.liquid) return h("p", { class: "sd-callout note", text: "Fluids don't need a ratio: a pipe junction or manifold shares by demand, as long as the pipe carries the total." });
       const outs = n.outs.map((o) => ({ label: name(byId.get(o.id)), rate: o.rate }));
       const ins = n.ins.map((i) => ({ label: name(byId.get(i.id)), rate: i.rate }));
-      return splitView(outs, n.item, { inputs: ins, tol: PLAN_TOL });
+      return splitView(outs, n.item, { inputs: ins, tol: PLAN_TOL, capacity: cap });
     }
     return h("p", { class: "sd-hint tiny", text: `${fmt(n.rate, 3)} ${unit(n.item)} on ${belt(n.item, n.rate)}.` });
   };

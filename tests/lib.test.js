@@ -344,6 +344,20 @@ test("factory graph: a card per machine, exact splitters between them", () => {
   assert.equal(lines.nodes.filter((n) => n.kind === "machine").length, r.lines.length);
 });
 
+test("the fastest belt you can build: belt sizes and the planner's splitter builds stay within it", () => {
+  assert.equal(G.carrier("IronOre", 412.5).name, "Belt Mk.4");
+  assert.deepEqual([G.carrier("IronOre", 412.5, 270).name, G.carrier("IronOre", 412.5, 270).count], ["Belt Mk.3", 2]);
+  assert.deepEqual([G.carrier("IronOre", 30, 60).name, G.carrier("IronOre", 30, 60).count], ["Belt Mk.1", 1]);
+  assert.equal(G.carrier("Water", 500, 60).name, "Pipe Mk.2", "pipes aren't belts");
+  const r = plan({ targets: [{ item: "ModularFrame", rate: 10 }, { item: "Rotor", rate: 10 }, { item: "IronPlateReinforced", rate: 5 }], recipes: G.defaultRecipes() });
+  for (const b of factoryGraph(r, { perMachine: false }).nodes.filter((n) => n.kind === "bal" && !n.liquid)) {
+    const bp = balancerPlan(b, 270);
+    verifyBalance(bp);
+    const perUnit = b.ins.reduce((t, x) => t + x.rate, 0) / bp.U;
+    assert.ok(Math.max(...bp.edges.map((e) => e.num / e.den)) * perUnit <= 270 + 1e-6, `${b.id}: every belt within Mk.3`);
+  }
+});
+
 test("flow layout: columns left to right, no overlapping cards, loops routed underneath", () => {
   const r = plan({ targets: [{ item: "ModularFrame", rate: 10 }, { item: "Rotor", rate: 10 }], recipes: G.defaultRecipes() });
   const g = factoryGraph(r);
