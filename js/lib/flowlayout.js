@@ -60,7 +60,7 @@ export function placeColumn(desired, weights, seps) {
 }
 
 /**
- * @param {{id: string, w: number, h: number, last?: boolean}[]} nodes  in a sensible
+ * @param {{id: string, w: number, h: number, first?: boolean, last?: boolean}[]} nodes  in a sensible
  *   initial order (it breaks ties, so cards of one production line stay together)
  * @param {{from: string, to: string}[]} edges
  */
@@ -86,11 +86,12 @@ export function layout(nodes, edges, opts = {}) {
   for (const c of topo) col.set(c, P.get(c).reduce((m, p) => Math.max(m, col.get(p) + 1), 0));
   // Pull nodes that feed more than they take (raw sources, splitters) right, next to
   // their earliest consumer, never level with or left of something that feeds them.
+  // Nodes marked `first` (a balancer's inputs) stay in the first column.
   for (let pass = 0; pass < 6; pass++) {
     let moved = false;
     for (let i = topo.length - 1; i >= 0; i--) {
       const c = topo[i], out = S.get(c).filter((s) => !node.get(s).last);
-      if (!out.length || out.length < P.get(c).length) continue;
+      if (node.get(c).first || !out.length || out.length < P.get(c).length) continue;
       const lim = Math.min(...out.map((s) => col.get(s))) - 1;
       if (lim > col.get(c)) { col.set(c, lim); moved = true; }
     }

@@ -279,6 +279,17 @@ dialog.dialog[open] { display: flex; flex-direction: column; }
 .dialog .dbody { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-top: var(--sp-2); padding-bottom: var(--sp-2); }
 .dialog > footer { flex: none; align-items: center; border-top: 1px solid var(--rule-2); padding-top: var(--sp-3); }
 .dialog > footer .tiny { flex: 1 1 14rem; }
+
+/* ── image export (js/export.js): what to draw, what to include, format, size, sheet ── */
+dialog.dialog.export { width: min(580px, calc(100vw - 32px)); }
+.export .sd-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; gap: var(--sp-4); padding-top: var(--sp-2); }
+.export .sd-fieldset { gap: 0; }
+.export .sd-fieldset > .sd-hint { margin: var(--sp-1) 0 0; }
+.export .stack.tight { gap: 0; }
+.export .stack.tight[hidden] { display: none; }
+.export .dims { margin: 0; font-family: var(--font-mono); }
+.export .sd-seg button:disabled { opacity: .45; cursor: not-allowed; }
+.bar .imgbtn .ico { width: 16px; height: 16px; }
 .recgroup { display: grid; gap: var(--sp-1); padding: var(--sp-3) 0; border-bottom: 1px solid var(--row-line); }
 .recgroup:last-child { border-bottom: 0; }
 .recgroup h3 { font: var(--fw-head) var(--fs-2)/1.3 var(--font-text); }
@@ -503,7 +514,7 @@ svg.fc-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-e
   html, body { height: auto; }
   .app { height: auto; min-height: 100%; }
   .bar.sd-bar { position: sticky; top: 0; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); gap: var(--sp-2); }
-  .brand .by, .lock { display: none; }
+  .brand .by, .lock, .bar .imgbtn .lbl { display: none; }
   .scroll { overflow: visible; padding: 0 var(--sp-2) var(--sp-7); }
   .view { padding: var(--sp-5) var(--sp-4); border-radius: var(--r); gap: var(--sp-5); }
   .view.home { gap: var(--sp-6); }

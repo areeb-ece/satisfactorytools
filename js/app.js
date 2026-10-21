@@ -1,6 +1,7 @@
 // The shell: tool list, hash routes (#/planner, #/items/IronPlate) and the offline
 // light/dark fallback. Each tool is a module with { id, title, group, blurb, mount }.
 import { h, clear, icon } from "./ui.js";
+import { openExport } from "./export.js";
 import planner from "./tools/planner.js";
 import itemsTool from "./tools/items.js";
 import compare from "./tools/compare.js";
@@ -17,6 +18,7 @@ const GROUPS = ["Planning", "Machines", "Logistics"];
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 const navBtn = document.getElementById("btnNav");
+const imageBtn = document.getElementById("btnImage");
 const view = document.getElementById("view");
 const scroller = document.getElementById("scroll");
 
@@ -63,6 +65,8 @@ function route() {
     else a.removeAttribute("aria-current");
   }
   clear(view);
+  view.imageInfo = null; // a tool sets its own, for the image's title block
+  imageBtn.hidden = !tool;
   // Workspace tools (the planner, the splitters) are a chart filling the window with a
   // side panel, as in PrereqFlow; the tool list folds away behind the "Tools" button.
   const ws = !!tool?.workspace;
@@ -109,6 +113,10 @@ function setNav(open, moveFocus = true) {
   else if (nav.contains(document.activeElement)) navBtn.focus();
 }
 navBtn.addEventListener("click", () => setNav(!app.classList.contains("nav-open")));
+imageBtn.addEventListener("click", () => {
+  const tool = TOOLS.find((t) => current?.startsWith(t.id + "/"));
+  if (tool) openExport(tool, view);
+});
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") setNav(false); });
 document.addEventListener("pointerdown", (e) => {
   if (app.classList.contains("nav-open") && !nav.contains(e.target) && !navBtn.contains(e.target)) setNav(false);

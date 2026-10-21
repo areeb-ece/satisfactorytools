@@ -1,8 +1,8 @@
 // Belt splitter and merger helper: any number of input belts, any rates, shared out
 // over the outputs in any ratio, exactly. The build fills the window as a flowchart;
 // the inputs, outputs and exact shares are in the side panel.
-import { h, clear, load, save, num, itemPicker, stat, toolHead, field, btn, closeBtn, fold, markStale } from "../ui.js";
-import { fmt, BELTS, PIPES } from "../lib/game.js";
+import { h, clear, load, save, num, itemPicker, stat, toolHead, field, segField, btn, closeBtn, fold, markStale } from "../ui.js";
+import { fmt, BELTS, PIPES, isLiquid } from "../lib/game.js";
 import { splitParts } from "../splitview.js";
 import { flowchart } from "../flowchart.js";
 
@@ -15,12 +15,15 @@ export default {
   tagline: "exact ratios",
   group: "Machines",
   color: 7,
-  blurb: "Any number of belts in, at any rates, shared out over the outputs in any ratio (3:2, 2:7, 1234:63:17…), exactly. Every splitter, merger and belt is drawn as a flowchart, with what each belt carries and the parts that loop back.",
+  blurb: "Any number of belts in, at any rates, shared out over the outputs in any ratio (3:2, 2:7, 1234:63:17…), exactly, with no belt faster than the ones you can build. The build with the fewest splitters and mergers is drawn as a flowchart, with what each belt carries and the parts that loop back.",
   workspace: true,
   mount(view) {
     const st = load(KEY, { item: "IronIngot", ins: [{ label: "Smelters A", rate: 240 }, { label: "Smelters B", rate: 135 }], outs: [{ label: "Plates", rate: 180 }, { label: "Rods", rate: 120 }, { label: "Out", rate: 75 }] });
-    if (!Array.isArray(st.ins)) st.ins = [{ label: "In", rate: st.total > 0 ? st.total : st.outs.reduce((t, o) => t + (o.rate || 0), 0) }]; // saved before inputs existed
+    // Saved before inputs existed: one input, of the old total. (load() fills `ins` in from
+    // the defaults, so the old `total` is what tells.)
+    if ("total" in st || !Array.isArray(st.ins)) st.ins = [{ label: "In", rate: st.total > 0 ? st.total : st.outs.reduce((t, o) => t + (o.rate || 0), 0) }];
     delete st.total;
+    if (!(st.belt >= 0 && st.belt < BELTS.length)) st.belt = BELTS.length - 1; // the fastest belt you can build
     const persist = () => save(KEY, st);
     const inRows = h("div", { class: "rows" }), outRows = h("div", { class: "rows" });
     const summary = h("section", { class: "panel results" });
@@ -50,6 +53,7 @@ export default {
     function draw() {
       clear(summary);
       clear(stage);
+      view.imageInfo = null;
       const ins = st.ins.filter((o) => o.rate > 0), outs = st.outs.filter((o) => o.rate > 0);
       const total = ins.reduce((t, o) => t + o.rate, 0);
       summary.append(h("h2", { text: "Build" }));
@@ -58,8 +62,16 @@ export default {
         stage.append(h("div", { class: "ws-empty" }, h("div", { class: "empty" }, h("b", { text: "Nothing to split or merge yet." }), h("p", { text: "Give at least one input a rate and two outputs a share (or two inputs and one output, to merge)." }))));
         return;
       }
-      const p = splitParts(outs.map((o) => ({ label: o.label || "?", rate: o.rate })), st.item, { inputs: ins.map((o) => ({ label: o.label || "?", rate: o.rate })) });
+      const capacity = isLiquid(st.item) ? PIPES.at(-1).rate : BELTS[st.belt].rate;
+      const p = splitParts(outs.map((o) => ({ label: o.label || "?", rate: o.rate })), st.item, { inputs: ins.map((o) => ({ label: o.label || "?", rate: o.rate })), capacity });
       if (p.error) { summary.append(p.error); stage.append(h("div", { class: "ws-empty" }, p.error.cloneNode(true))); return; }
+      const b = p.build, belt = isLiquid(st.item) ? PIPES.at(-1) : BELTS[st.belt];
+      view.imageInfo = () => ({
+        what: `${fmt(total, 3)}/min on ${ins.length} belt${ins.length === 1 ? "" : "s"} → ${outs.map((o) => o.label || "?").join(", ")}`,
+        facts: `${b.splitters} splitter${b.splitters === 1 ? "" : "s"}, ${b.mergers} merger${b.mergers === 1 ? "" : "s"} · no belt over ${belt.name} (${fmt(belt.rate)}/min) · exact`,
+        sections: ["Build"],
+        kinds: { src: "input belt", out: "output" },
+      });
       summary.append(h("p", { class: "sd-hint tiny", text: `${fmt(total, 3)}/min coming in on ${ins.length} belt${ins.length === 1 ? "" : "s"}.` }), ...p.summary, p.table);
       stage.append(p.tooBig ? h("div", { class: "ws-empty" }, p.tooBig) : flowchart(p.graph, {
         labels: true, stage: true,
@@ -76,7 +88,10 @@ export default {
         toolHead(this),
         h("section", { class: "panel" }, h("h2", { text: "Inputs" }), h("p", { class: "sd-hint tiny", text: "The belts coming in, at any rates." }), inRows),
         h("section", { class: "panel" }, h("h2", { text: "Outputs" }), h("p", { class: "sd-hint tiny", text: "Rates, or parts of a ratio of everything coming in: 180, 120, 75 and 12, 8, 5 give the same build. Always exact." }), outRows),
-        h("section", { class: "panel" }, field("Item, for belt sizes (optional)", itemPicker(st.item, (id) => { st.item = id; run(); }, { kind: "all" }))),
+        h("section", { class: "panel" },
+          segField("Fastest belt you can build", BELTS.map((b, i) => ({ value: String(i), label: b.name.replace("Belt ", ""), title: `${b.name}: ${fmt(b.rate)}/min` })), String(st.belt), (v) => { st.belt = +v; run(); }, { wide: true }),
+          h("p", { class: "sd-hint tiny", text: "No belt in the build carries more than this. An input or output that's more than one belt carries is spread over several." }),
+          field("Item, for belt sizes (optional)", itemPicker(st.item, (id) => { st.item = id; run(); }, { kind: "all" }))),
         summary,
         h("section", { class: "panel tune ref" }, fold("Belt and pipe throughput", false, "per minute",
           h("div", { class: "stats" }, [...BELTS, ...PIPES].map((b) => stat(fmt(b.rate) + (b.name.startsWith("Pipe") ? " m³" : ""), b.name))),

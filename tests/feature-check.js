@@ -558,6 +558,51 @@ for (const [w, h, t] of [[1360, 900, "desktop"], [390, 844, "phone"]]) {
     await page.locator(".ws-stage .fc-card.k-out").first().click();
     ok((await text(".fc-drawer")).includes("Gets exactly"), "pinned output explains itself");
   });
+  await check("splitters: the fastest belt you can build limits every belt", async () => {
+    // 1314/min doesn't fit one Mk.6 belt (1200), so it comes in on two; on Mk.3 (270), on five.
+    ok((await text(".view")).includes("taken as 2 belts of 657/min"), "over Mk.6: two belts");
+    await page.getByRole("radio", { name: "Mk.3" }).click();
+    await wait(500);
+    const v = await text(".view");
+    ok((await store("splitters")).belt === 2, "belt saved");
+    ok(v.includes("taken as 5 belts of 262.8/min") && v.includes("the fastest allowed is Belt Mk.3") && v.includes("exact"), "on Mk.3: five belts, still exact");
+    ok((await page.locator(".ws-stage .fc-card.k-src").count()) === 5, "five input belts drawn");
+    const labels = await page.$$eval(".ws-stage .fc-lbl", (t) => t.map((x) => parseFloat(x.textContent.replace(/,/g, ""))));
+    ok(labels.every((x) => x <= 270 + 1e-9), "no belt over 270/min: " + Math.max(...labels));
+  });
+
+  // ── image export ─────────────────────────────────────────────────────────
+  const saveImage = async (pick = []) => {
+    await page.click("#btnImage");
+    const dlg = page.locator("dialog.export[open]");
+    await dlg.waitFor();
+    for (const p of pick) await dlg.getByText(p, { exact: true }).first().click();
+    const [dl] = await Promise.all([page.waitForEvent("download"), dlg.getByRole("button", { name: "Save image" }).click()]);
+    const file = await dl.path();
+    return { name: dl.suggestedFilename(), size: fs.statSync(file).size, head: fs.readFileSync(file).subarray(0, 8) };
+  };
+  await check("image export: every tool saves a PNG", async () => {
+    for (const r of ["planner", "items/Computer", "compare/Computer", "milestones", "overclock", "extract", "power", "splitters", "logistics", "sink"]) {
+      await go(r);
+      const f = await saveImage();
+      ok(f.name.endsWith(".png") && f.head.toString("latin1").includes("PNG") && f.size > 5000, `${r}: ${f.name} (${f.size} bytes)`);
+      await toastSays("Saved");
+    }
+  });
+  await check("image export: SVG, the highlighted tree, the pinned splitter's build, panels only", async () => {
+    await go("splitters");
+    let f = await saveImage(["SVG", "Light / print"]);
+    ok(f.name.endsWith(".svg") && f.head.toString().startsWith("<svg"), "SVG");
+    await go("planner");
+    await page.locator('.fc-card[data-id="m:IronPlate:0"]').click({ modifiers: ["Shift"] });
+    f = await saveImage();
+    ok(f.name.includes("-trees-"), "highlighted trees are the default once one is lit: " + f.name);
+    await page.locator(".ws-side .linkish", { hasText: "build this split" }).first().click();
+    f = await saveImage();
+    ok(f.name.includes("-inner-"), "with a splitter pinned, its build is the default: " + f.name);
+    f = await saveImage(["Just the panels, no diagram"]);
+    ok(f.name.includes("-sheet-"), "panels only: " + f.name);
+  });
 
   // ── logistics ────────────────────────────────────────────────────────────
   await check("trains: cars, stations, driving time, target, fluid cargo", async () => {
