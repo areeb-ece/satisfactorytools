@@ -117,6 +117,7 @@ export default {
       clear(out);
       clear(stage);
       chart = null;
+      view.imageInfo = null;
       const res = plan({ targets: st.targets.filter((t) => t.item && t.rate > 0), inputs: st.inputs.filter((t) => t.item), recipes: recipeSet(st), objective: st.objective, maxClock: st.maxClock });
       if (res.status === "empty") {
         stage.append(h("div", { class: "ws-empty" }, h("div", { class: "empty" }, h("b", { text: "No factory yet" }), h("p", { text: "Add a product and a rate to see the factory." }))));
@@ -128,6 +129,12 @@ export default {
         stage.append(h("div", { class: "ws-empty" }, h("div", { class: "empty" }, h("b", { text: "No factory to draw" }), h("p", { text: res.message }))));
         return;
       }
+      const built = res.lines.reduce((t, L) => t + L.built, 0);
+      view.imageInfo = () => ({
+        what: st.targets.filter((t) => t.item && t.rate > 0).map((t) => `${fmt(t.rate)} ${itemName(t.item)}/min`).join(", "),
+        facts: `${fmt(built, 0)} machines on ${res.lines.length} line${res.lines.length === 1 ? "" : "s"} · ${mw(res.power)}`,
+        kinds: { src: "raw or input", bal: "splitter / merger", out: "product" },
+      });
       const show = (id) => chart?.focus(id);
       out.append(results(res, st, (tab) => { st.tab = tab; persist(); }, show));
       stage.append(diagram(res, st, persist, (c) => (chart = c)));

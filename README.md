@@ -24,7 +24,7 @@ This is an independent fan project, not affiliated with Coffee Stain Studios.
 | Machines | **Overclock & Somersloop calculator** | Machine count and clock layouts for a target rate, Power Shards, Somersloops and power. |
 | | **Miner & node calculator** | Miners, oil and water extractors by purity and clock, belt and pipe limits, resource wells. |
 | | **Power plant planner** | Generators, fuel, water, extractors and nuclear waste for a target, or the power a fuel supply gives. Geothermal too. |
-| | **Belt splitter & merger helper** | Any number of input belts, at any rates, shared out over the outputs in any ratio, exactly (1234:63:17 included), with splitters, mergers and loops back, drawn as a flowchart of every belt. |
+| | **Belt splitter & merger helper** | Any number of input belts, at any rates, shared out over the outputs in any ratio, exactly (1234:63:17 included), with no belt faster than the fastest you can build. The build with the fewest splitters and mergers found is drawn as a flowchart of every belt, loops back included. |
 | Logistics | **Train & drone throughput** | Items per minute for a route, Freight Cars for a target, drone battery use. |
 | | **AWESOME Sink calculator** | Points per minute, when the next coupons print, most valuable items. |
 
@@ -78,6 +78,8 @@ js/lib/flowlayout.js  its layered layout (adapted from PrereqFlow's js/layout.js
 js/lib/factory.js   the planner's result as a machine-level graph with exact splitter nodes
 js/graph.js         the planner's factory diagram
 js/splitview.js     splitter plans as flowcharts
+js/export.js        Save image: the dialog, and charts and panels as drawing operations
+js/image.js         draws those to a PNG canvas or an SVG document (after PrereqFlow's)
 tests/              lib.test.js (unit), browser-check.js and feature-check.js (Playwright)
 PRODUCT.md          who the tools are for and the product's principles (for design work)
 ```
@@ -137,22 +139,68 @@ Any ratio is split exactly, with no rounding:
 
 Every belt then carries a whole number of 1/D shares of the input.
 
-Several input belts, of any rates, are a balancer, and there are two ways to build one
-(`balance` in `js/lib/belts.js`). The tool works out both and keeps the cheaper:
+Several input belts, of any rates, are a balancer (`balance` in `js/lib/belts.js`).
+Every build it considers has the same shape:
 
-- **Merge:** join every input into one belt, then split it as above.
-- **Route:** decide which input feeds which output, split each input exactly into its own
-  pieces, and merge the pieces at each output. An input that matches an output goes
-  straight to it, and no belt carries the whole total.
+1. The inputs are put into groups.
+2. Each group's belts merge into one, and that belt is split exactly, as above, into what
+   the group sends to each output. A group that feeds a single output needs no splitter.
+3. Each output merges whatever reaches it.
 
-A build whose busiest belt wouldn't fit on a Mk.6 belt loses to one that fits. Outputs
-are a ratio of everything coming in, so they don't have to add up to the inputs. The
-planner's splitter cards use the same balancer, with each machine feeding them as an
-input. `js/lib/belts.js`
-builds the explicit network of splitters and mergers, and the unit tests follow every
-belt of it. They check that each splitter divides evenly, that each merger takes at most
-three belts and loses nothing, and that each output gets exactly its weight. The cases
-include 1234:63:17 (9 splitters, 8 mergers), 999983:1 and 40 random ratios.
+All the inputs in one group is "merge everything, then split". Each input in a group of
+its own is "split each input on its own". In between, some inputs merge and the rest
+don't. The search tries every way of grouping up to six input belts, and rules of thumb
+for more. For each grouping, it tries several ways of deciding which group feeds which
+output. Inputs and outputs that match exactly, or add up exactly, are paired first. Then
+it keeps the build with the fewest splitters and mergers. On a tie, it prefers fewer
+loops, then a lighter busiest belt. It's a search, not a proof: it reports how many builds
+it compared. Against the earlier two-way choice (merge everything or split each input
+alone), it was never worse on 300 random cases and used fewer pieces in half of them.
+
+**The fastest belt you can build** caps every belt in the build:
+- An input over the cap is taken as several equal belts.
+- An output over it gets as few belts as can carry it, packed from the pieces that
+  reach it.
+- A group only merges belts that fit on one.
+- A loop may only add what its belt has room for. When a split needs a loop that won't
+  fit, its belt is halved (or split in three) first.
+
+Outputs are a ratio of everything coming in, so they don't have to add up to the
+inputs. The planner's splitter cards use the same balancer, with each machine feeding
+them as an input and Mk.6 as the cap.
+
+`js/lib/belts.js` builds the explicit network of splitters and mergers, and the unit tests
+follow every belt of it. They check that:
+- each splitter divides evenly;
+- each merger takes at most three belts and loses nothing;
+- each output gets exactly its weight;
+- no belt carries more than the cap;
+- the build has exactly the pieces the search counted.
+
+The cases include 1234:63:17 (9 splitters, 8 mergers), 999983:1, and random ratios and
+belt caps.
+
+### Saving images
+
+Every tool has **Save image** in the title bar. As in PrereqFlow, you pick what to draw:
+- With a diagram (the planner, the splitter helper): the whole diagram, the highlighted
+  trees, the pinned card with everything that feeds it and everything it feeds, the part
+  on screen, the build inside a pinned splitter card, or just the panels.
+- Any tool: which of its panels to include (inputs, results, tables).
+
+Then pick the rest:
+- the title block and legend, rates on the belts, and tree highlights;
+- PNG at 2×, 3×, 4× or 6×, scaled down if a browser can't draw a canvas that big, or SVG;
+- the current theme, the dark sheet or the light one for printing.
+
+The credit line is always drawn. `js/export.js` reads the chart's layout, and the panels'
+headings, fields, stat tiles and tables, back from the page. It turns them into drawing
+operations, which `js/image.js` draws to a canvas or writes out as SVG. Colours come from
+the shared palette, read through a hidden element carrying the chosen theme.
+
+The page can't fetch its own font files (`connect-src 'none'`), so SVGs name mononoki and
+Libre Franklin rather than embedding them. Where those aren't installed, similar fonts
+stand in.
 
 ### Game data
 

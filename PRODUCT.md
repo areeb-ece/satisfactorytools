@@ -26,7 +26,11 @@ exact answer without leaving the flow of the game.
 
 - The planner is a linear programme solved in the tab, checked against HiGHS on 907 plans.
 - Any belt ratio (1234:63:17 included), from any number of input belts, is split exactly with
-  splitters, mergers and loops, drawn belt by belt; the planner's splits use the same balancer.
+  splitters, mergers and loops, drawn belt by belt. No belt is faster than the fastest the
+  player can build, and the build with the fewest pieces found wins. The planner's splits use
+  the same balancer.
+- Every tool saves as an image (PNG at 2–6× or SVG, any theme), with the PrereqFlow export's
+  choices of what to draw.
 - The factory diagram is the PrereqFlow chart: one card per machine, hover to trace, pin, highlight.
 - Nothing leaves the browser: `connect-src 'none'`, no analytics; plans live in `localStorage`
   and shared plans travel inside the link.

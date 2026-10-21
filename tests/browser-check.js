@@ -52,11 +52,11 @@ fs.mkdirSync(SHOTS, { recursive: true });
 let failed = false;
 try {
   for (const [w, hgt, tag] of [[1360, 900, "desktop"], [390, 844, "phone"]]) {
-    const page = await browser.newPage({ viewport: { width: w, height: hgt } });
+    const page = await browser.newPage({ viewport: { width: w, height: hgt }, acceptDownloads: true });
     const errors = [], outside = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-    page.on("request", (r) => { if (!r.url().startsWith(origin) && !r.url().startsWith("data:")) outside.push(r.url()); });
+    page.on("request", (r) => { if (!r.url().startsWith(origin) && !r.url().startsWith("data:") && !r.url().startsWith("blob:" + origin)) outside.push(r.url()); });
     await page.addInitScript(() => {
       window.__csp = [];
       document.addEventListener("securitypolicyviolation", (e) => window.__csp.push(e.violatedDirective + " " + e.blockedURI));
@@ -147,6 +147,17 @@ try {
     const multi = await page.textContent(".view");
     assert.ok(multi.includes("420/min coming in on 3 belts") && multi.includes("exact"), "three inputs balanced exactly");
     if (tag === "desktop") await page.screenshot({ path: path.join(SHOTS, "desktop-splitters-inputs.png") });
+
+    // The build saves as an image (PNG and SVG), drawn in the page: nothing leaves it.
+    for (const fmt of ["PNG", "SVG"]) {
+      await page.click("#btnImage");
+      const dlg = page.locator("dialog.export[open]");
+      await dlg.waitFor();
+      await dlg.getByText(fmt, { exact: true }).click();
+      const [dl] = await Promise.all([page.waitForEvent("download"), dlg.getByRole("button", { name: "Save image" }).click()]);
+      assert.ok(dl.suggestedFilename().endsWith("." + fmt.toLowerCase()), "saved as " + fmt);
+      if (tag === "desktop") await dl.saveAs(path.join(SHOTS, `desktop-splitters-export.${fmt.toLowerCase()}`));
+    }
 
     // Milestones → planner hand-off.
     await page.goto(base + "#/milestones");

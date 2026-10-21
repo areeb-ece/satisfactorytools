@@ -214,7 +214,8 @@ test("belts: every splitter network is exact, 1234:63:17 included", () => {
 });
 
 // The same check for a whole balancer (several inputs): amounts are exact fractions
-// (num/den units), so they're compared with BigInt cross-multiplication.
+// (num/den units), so they're compared with BigInt cross-multiplication. No belt may
+// carry more than the limit, and the build has exactly the pieces the search counted.
 const gcdN = (a, b) => { while (b) [a, b] = [b, a % b]; return a; };
 function verifyBalance(r) {
   const B = (x) => BigInt(x);
@@ -226,11 +227,15 @@ function verifyBalance(r) {
   const sum = (l) => (l ?? []).reduce(([n, d], e) => [n * B(e.den) + B(e.num) * d, d * B(e.den)], [0n, 1n]);
   const eq = ([a, b], [c, d]) => a * d === c * b;
   let splitters = 0, mergers = 0;
+  const got = { in: r.A.map(() => [0n, 1n]), out: r.B.map(() => [0n, 1n]) };
+  const add = ([a, b], [c, d]) => [a * d + c * b, b * d];
+  for (const e of r.edges) assert.ok(e.num / e.den <= r.cap * (1 + 1e-9), `belt over the limit: ${e.num / e.den} > ${r.cap}`);
   for (const n of r.nodes) {
     const i = into.get(n.id) ?? [], o = from.get(n.id) ?? [];
     if (n.kind === "split") {
       splitters++;
       assert.equal(i.length, 1);
+      assert.ok(n.ways === 2 || n.ways === 3);
       assert.equal(o.length, n.ways);
       for (const e of o) assert.ok(eq([B(e.num) * B(n.ways), B(e.den)], [B(i[0].num), B(i[0].den)]), "splitter divides evenly");
     } else if (n.kind === "merge") {
@@ -238,11 +243,21 @@ function verifyBalance(r) {
       assert.ok(i.length >= 2 && i.length <= 3, "merger takes 2–3 belts");
       assert.equal(o.length, 1);
       assert.ok(eq(sum(i), sum(o)), "merger loses nothing");
-    } else if (n.kind === "out") assert.ok(eq(sum(i), [B(r.B[n.index]), 1n]), `output ${n.index} gets exactly its share`);
-    else if (n.kind === "in") assert.ok(eq(sum(o), [B(r.A[n.index]), 1n]), `input ${n.index} all goes somewhere`);
+    } else if (n.kind === "out") {
+      assert.equal(i.length, 1, "an output belt comes from one belt");
+      got.out[n.index] = add(got.out[n.index], sum(i));
+    } else if (n.kind === "in") {
+      assert.equal(i.length, 0);
+      assert.ok(eq(sum(o), [B(n.amount), 1n]), `input belt ${n.id} all goes somewhere`);
+      got.in[n.index] = add(got.in[n.index], sum(o));
+    }
   }
+  r.B.forEach((b, j) => assert.ok(eq(got.out[j], [B(b), 1n]), `output ${j} gets exactly its share`));
+  r.A.forEach((a, j) => assert.ok(eq(got.in[j], [B(a), 1n]), `input ${j} is all used`));
+  for (const b of r.outBelts) assert.ok(b.num / b.den <= r.cap * (1 + 1e-9), "output belts fit");
   assert.equal(splitters, r.splitters);
   assert.equal(mergers, r.mergers);
+  assert.equal(splitters + mergers, r.cost, "the build has the pieces the search counted");
   assert.equal(r.A.reduce((a, b) => a + b, 0), r.U);
   assert.equal(r.B.reduce((a, b) => a + b, 0), r.U);
 }
@@ -269,6 +284,40 @@ test("balance: several inputs of any rates, any output ratio, exact", () => {
   const big = balance([1000, 1000], [1, 1, 1, 1], { capacity: 1200 });
   assert.equal(big.strategy, "route");
   verifyBalance(big);
+});
+
+test("balance: the fewest splitters and mergers, every belt within the limit", () => {
+  // Merging every input first isn't always best: 135 + 45 make 180, and 240 halves into 120 + 120.
+  const a = balance([240, 135, 45], [180, 120, 120]);
+  verifyBalance(a);
+  assert.equal(a.cost, 2);
+  // Sometimes it is: two 60s into three 40s are one merger and one splitter.
+  const b = balance([60, 60], [40, 40, 40]);
+  assert.deepEqual([b.cost, b.strategy], [2, "merge"]);
+  // Inputs that add up to an output just merge into it.
+  const c = balance([100, 200, 300, 400, 500, 600], [700, 800, 600]);
+  assert.deepEqual([c.splitters, c.mergers], [0, 2]);
+  // Over the limit: 900/min with Mk.3 belts (270) comes in on four belts, and each output
+  // gets two of them; nothing else to build.
+  const d = balance([900], [450, 450], { capacity: 270 });
+  verifyBalance(d);
+  assert.deepEqual([d.inBelts.length, d.outBelts.length, d.cost], [4, 4, 0]);
+  // A full belt whose split needs a loop is halved first, so the loop fits.
+  const e = balance([1200], [1, 1, 1, 1, 1], { capacity: 1200 });
+  verifyBalance(e);
+  assert.equal(e.groups[0].pre, 2);
+  // A merged belt that won't fit isn't built: 1000 + 1000 on Mk.6 split on their own.
+  const f = balance([1000, 1000], [1, 1, 1, 1], { capacity: 1200 });
+  assert.deepEqual([f.strategy, f.cost], ["route", 2]);
+  // Random inputs, outputs and belt limits: every belt fits, every output is exact.
+  let seed = 23;
+  const rnd = (n) => 1 + ((seed = (seed * 48271) % 2147483647) % n);
+  const caps = [60, 120, 270, 480, 780, 1200];
+  for (let k = 0; k < 40; k++) {
+    const ins = Array.from({ length: 1 + (k % 4) }, () => 15 * rnd(40));
+    const outs = Array.from({ length: 1 + ((k + 2) % 5) }, () => rnd(12));
+    verifyBalance(balance(ins, outs, { capacity: caps[k % caps.length] }));
+  }
 });
 
 test("factory graph: a card per machine, exact splitters between them", () => {

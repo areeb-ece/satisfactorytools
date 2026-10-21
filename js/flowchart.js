@@ -326,6 +326,11 @@ export function flowchart(graph, opts = {}) {
   rove(cur);
   setZoom(1);
   apply();
-  root.chart = { layout: lay, fit, pin, focus, toggleTree, setZoom, state: st };
+  // What's on screen, in layout coordinates, less the drawer over its right side.
+  const viewport = () => {
+    const cover = opts.stage && st.pinned && !details.hidden ? details.offsetWidth : 0;
+    return { x: view.scrollLeft / st.zoom - parseFloat(sizer.style.marginLeft || 0) / st.zoom, y: view.scrollTop / st.zoom - parseFloat(sizer.style.marginTop || 0) / st.zoom, w: (view.clientWidth - cover) / st.zoom, h: view.clientHeight / st.zoom };
+  };
+  root.chart = { graph, layout: lay, fit, pin, focus, toggleTree, setZoom, state: st, viewport };
   return root;
 }
