@@ -1,19 +1,33 @@
 # Satisfactory Tools
 
-**Live: [areeb-ece.github.io/satisfactorytools](https://areeb-ece.github.io/satisfactorytools/)** · made by areeb
+Ten calculators and planners for the factory building game Satisfactory, in one page.
 
-Ten calculators and planners for [Satisfactory](https://www.satisfactorygame.com/),
-in one page. Plan a whole factory for several products at once, then size every
-machine, miner, generator, belt split and train for it.
+**Live:** [areeb-ece.github.io/satisfactorytools](https://areeb-ece.github.io/satisfactorytools/)
 
-It's a static site with no build step, no framework and no server. Everything is
-calculated in your browser tab, and your plans are kept in this browser only.
+## Table of Contents
 
-This is an independent fan project, not affiliated with Coffee Stain Studios.
+- [About](#about)
+- [Screenshots](#screenshots)
+- [Features](#features)
+- [Technologies](#technologies)
+- [Setup](#setup)
+- [Usage](#usage)
+- [Project Status](#project-status)
+- [Credits](#credits)
+- [Author](#author)
+- [License](#license)
 
----
+## About
 
-## The tools
+A collection of planners and calculators for [Satisfactory](https://www.satisfactorygame.com/), a factory building game. You can plan a whole factory for several products at once, then size every machine, miner, generator, belt split and train for it. I made it to automate planning production lines, which is incredibly tedious by hand.
+
+It's a static site with no build step, no framework and no server. Everything is calculated in your browser tab, and your plans are kept in this browser only.
+
+## Screenshots
+
+![The production planner with Modular Frames, Rotors and Reinforced Iron Plates planned, and the factory diagram it builds](docs/images/screenshot.webp)
+
+## Features
 
 | Group | Tool | What it does |
 | --- | --- | --- |
@@ -28,40 +42,27 @@ This is an independent fan project, not affiliated with Coffee Stain Studios.
 | Logistics | **Train & drone throughput** | Items per minute for a route, Freight Cars for a target, drone battery use. |
 | | **AWESOME Sink calculator** | Points per minute, when the next coupons print, most valuable items. |
 
-## Getting started
+Every tool can also be saved as a PNG or SVG image.
 
-```sh
-git clone https://github.com/areeb-ece/satisfactorytools.git
-cd satisfactorytools
-python3 -m http.server 8080      # or: npm run serve
-# open http://localhost:8080
-```
+### Privacy
 
-The page uses JavaScript modules, which browsers won't load from `file://`, so serve
-the folder rather than opening `index.html` directly.
+The page's Content Security Policy includes `connect-src 'none'`: it can't make
+network requests. There are no analytics. Plans and checklists are saved in
+`localStorage` under `satisfactorytools.*`. A plan you share travels inside the link
+itself.
 
-To publish it, turn on GitHub Pages for the repository (Settings → Pages → deploy
-from the `main` branch, root folder). It's served at `/satisfactorytools/` next to the
-portfolio, which reserves that path.
+## Technologies
 
-## Checks
+- JavaScript (ES modules), HTML, CSS
+- No runtime dependencies, no lockfile
+- Game data from [greeny/SatisfactoryTools](https://github.com/greeny/SatisfactoryTools) `data/data1.0.json` (MIT), baked into `js/data.js` by `scripts/build-data.js`
+- Playwright 1.56.1 (dev/test only, installed with `--no-save`), running Chromium
+- Node.js 22 (tests and the data script; CI uses Node 22)
+- Project version 1.0.0 (`package.json`)
 
-```sh
-npm test                 # the maths (node --test, no browser)
-npm i --no-save playwright@1.56.1
-npm run test:browser     # every tool in Chromium: no errors, no CSP violations, no network, no sideways scroll
-npm run test:features    # every feature, clicked and typed the way a player would, at desktop and phone width
-DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:browser    # with the shared theme and sky
-DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:features
-```
+### How it's put together
 
-With `DESIGN_DIR`, the checks serve `/design/` from that folder and `/fonts/` from the folder
-beside it (where `/design/fonts.css` finds Libre Franklin). CI (`.github/workflows/test.yml`)
-runs them all on every push, offline and with the files the live portfolio serves.
-
-## How it's put together
-
-```
+```text
 index.html          the page: title bar, tool list, the current tool
 css/style.css       the layout of the tools on the shared design (/design/): sheets, columns, the planner
                     workspace and the chart. Only master tokens; components are the shared sd- ones
@@ -116,12 +117,6 @@ cards are ordered and placed to keep links straight with few crossings
 (`js/lib/flowlayout.js`). Each machine is its own card. Wherever an item's belts split
 or join, a splitter/merger card stands between the machines, labelled with the exact
 ratio, such as "6×64 : 16×31" for 6 plate and 16 rod constructors.
-
-- **Hover** a card to trace what feeds it (blue) and what it feeds (amber).
-- **Click** a card to pin it and open its details. For a splitter card, that's its full build.
-- **Shift+click** to keep a tree highlighted.
-- **Keyboard:** the chart is one Tab stop. The arrow keys move to the nearest card in that
-  direction (focusing a card traces it), Enter pins it and Escape unpins.
 
 Factories over 600 machines are drawn one card per line instead.
 
@@ -221,14 +216,9 @@ stand in.
 
 ### Game data
 
-`js/data.js` is built from [greeny/SatisfactoryTools](https://github.com/greeny/SatisfactoryTools)'
-`data/data1.0.json` (MIT), which is extracted from the game's own `Docs.json`. Recipes
-haven't changed since 1.0; 1.1 and 1.2 added features, not recipe changes. To rebuild it:
-
-```sh
-npm run data                         # download the file and rebuild js/data.js
-node scripts/build-data.js data.json # or from a local copy
-```
+`js/data.js` is built from greeny/SatisfactoryTools' `data/data1.0.json` (MIT), which is
+extracted from the game's own `Docs.json`. Recipes haven't changed since 1.0; 1.1 and 1.2
+added features, not recipe changes. To rebuild it, see [Rebuilding the game data](#rebuilding-the-game-data).
 
 No game images are used: that repository's item icons belong to Coffee Stain Studios.
 
@@ -246,7 +236,7 @@ A few figures aren't in the dataset and are written out in `scripts/build-data.j
 The drone battery estimate (4 + 1 per km) is a community figure, so the tool lets you
 type the real number from the Drone Port instead.
 
-## Design
+### Design
 
 The look is shared with [the portfolio](https://areeb-ece.github.io/),
 [PrereqFlow](https://areeb-ece.github.io/prereqflow/) and
@@ -268,20 +258,96 @@ When `/design/` is missing (offline), or serves a version from before the shared
 components, `js/theme.js` links `assets/design/` instead, a copy of the master's `tokens.css`
 and `ui.css`. Refresh it when the master changes:
 
-```sh
+```bash
 cp ../areeb-ece.github.io/public/design/{tokens,ui}.css assets/design/
 ```
 
 The night and paper colours at the top of `css/style.css` and the light/dark button cover
 the moment before that copy loads, and offline use.
 
-## Privacy
+## Setup
 
-The page's Content Security Policy includes `connect-src 'none'`: it can't make
-network requests. There are no analytics. Plans and checklists are saved in
-`localStorage` under `satisfactorytools.*`. A plan you share travels inside the link
-itself.
+### Prerequisites
 
-## Licence
+- Python 3 (or any static file server) to serve the folder
+- A browser with ES module support
+- Node.js 22, only for the tests and the data script
+- Chromium via Playwright, only for the browser tests
 
-MIT, see [LICENSE](LICENSE). Satisfactory is a trademark of Coffee Stain Studios.
+### Run locally
+
+```bash
+git clone https://github.com/areeb-ece/satisfactorytools.git
+cd satisfactorytools
+python3 -m http.server 8080      # or: npm run serve
+# open http://localhost:8080
+```
+
+The page uses JavaScript modules, which browsers won't load from `file://`, so serve
+the folder rather than opening `index.html` directly.
+
+Or use the live version: [areeb-ece.github.io/satisfactorytools](https://areeb-ece.github.io/satisfactorytools/).
+
+To publish it, turn on GitHub Pages for the repository (Settings → Pages → deploy
+from the `main` branch, root folder). It's served at `/satisfactorytools/` next to the
+portfolio, which reserves that path.
+
+### Tests
+
+```bash
+npm test                 # the maths (node --test, no browser)
+npm i --no-save playwright@1.56.1
+npx playwright install chromium
+npm run test:browser     # every tool in Chromium: no errors, no CSP violations, no network, no sideways scroll
+npm run test:features    # every feature, clicked and typed the way a player would, at desktop and phone width
+DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:browser    # with the shared theme and sky
+DESIGN_DIR=../areeb-ece.github.io/public/design npm run test:features
+```
+
+With `DESIGN_DIR`, the checks serve `/design/` from that folder and `/fonts/` from the folder
+beside it (where `/design/fonts.css` finds Libre Franklin). CI (`.github/workflows/test.yml`)
+runs them all on every push, offline and with the files the live portfolio serves.
+
+### Rebuilding the game data
+
+```bash
+npm run data                         # download the file and rebuild js/data.js
+node scripts/build-data.js data.json # or from a local copy
+```
+
+## Usage
+
+Open the page, pick a tool from the list (or the **Tools** button), and type your targets. Plans are kept in this browser, and the planner can give you a link to share a plan.
+
+### Reading the factory diagram
+
+- **Hover** a card to trace what feeds it (blue) and what it feeds (amber).
+- **Click** a card to pin it and open its details. For a splitter card, that's its full build.
+- **Shift+click** to keep a tree highlighted.
+- **Keyboard:** the chart is one Tab stop. The arrow keys move to the nearest card in that
+  direction (focusing a card traces it), Enter pins it and Escape unpins.
+
+### Saving an image
+
+Use **Save image** in the title bar of any tool; see "Saving images" under [Technologies](#how-its-put-together) for the options.
+
+## Project Status
+
+**Complete**, and still updated when something should be added or changed. No new
+features are planned for now.
+
+## Credits
+
+- Game data: [greeny/SatisfactoryTools](https://github.com/greeny/SatisfactoryTools) (MIT).
+- The factory diagram, image export and layout follow [PrereqFlow](https://areeb-ece.github.io/prereqflow/).
+- The planner's solver was checked against [HiGHS](https://highs.dev).
+- The look is shared with the portfolio's design (see Design under Technologies).
+- This is an independent fan project, not affiliated with Coffee Stain Studios. Satisfactory is a trademark of Coffee Stain Studios.
+
+## Author
+
+Made by areeb ([areeb-ece.github.io](https://areeb-ece.github.io), [GitHub](https://github.com/areeb-ece)).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
